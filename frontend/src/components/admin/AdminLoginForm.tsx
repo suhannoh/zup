@@ -9,7 +9,7 @@ export function AdminLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("admin@zup.local");
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState("admin1234");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
