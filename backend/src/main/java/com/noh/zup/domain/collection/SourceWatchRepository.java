@@ -11,6 +11,8 @@ public interface SourceWatchRepository extends JpaRepository<SourceWatch, Long> 
 
     List<SourceWatch> findAllByOrderByIdDesc();
 
+    long countByIsActiveTrue();
+
     @Query("""
             select sourceWatch
             from SourceWatch sourceWatch

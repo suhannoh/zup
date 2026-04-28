@@ -1,6 +1,7 @@
 package com.noh.zup.domain;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
@@ -206,6 +207,44 @@ class OfficialSourceCollectionApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("collection runs fetched"))
                 .andExpect(jsonPath("$.data[?(@.sourceWatchId == " + sourceWatchId + ")]", hasSize(1)));
+    }
+
+    @Test
+    void dashboardIncludesCollectionSummary() throws Exception {
+        Long brandId = brandRepository.findBySlug("starbucks").orElseThrow().getId();
+
+        when(officialSourceFetcher.fetch(anyString()))
+                .thenReturn(FetchResult.success(200, birthdayCouponHtml()))
+                .thenReturn(FetchResult.failure(500, "HTTP status 500"));
+
+        Long successSourceWatchId = createSourceWatch(brandId, "Dashboard success page");
+        Long failedSourceWatchId = createSourceWatch(brandId, "Dashboard failed page");
+        Long skippedSourceWatchId = createSourceWatch(brandId, "Dashboard skipped page");
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", successSourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.candidateCount").value(1));
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", failedSourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fetched").value(false));
+        mockMvc.perform(patch("/api/v1/admin/source-watches/{id}/active", skippedSourceWatchId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("isActive", false))))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", skippedSourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fetched").value(false));
+
+        mockMvc.perform(get("/api/v1/admin/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.collectionSummary.totalSourceWatchCount", greaterThanOrEqualTo(3)))
+                .andExpect(jsonPath("$.data.collectionSummary.activeSourceWatchCount", greaterThanOrEqualTo(2)))
+                .andExpect(jsonPath("$.data.collectionSummary.pendingCandidateCount", greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.data.collectionSummary.recentSuccessRunCount", greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.data.collectionSummary.recentFailedRunCount", greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.data.collectionSummary.recentSkippedRunCount", greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.data.collectionSummary.recentFailedRuns", hasSize(greaterThanOrEqualTo(1))))
+                .andExpect(jsonPath("$.data.collectionSummary.recentFailedRuns[0].failureReason").value("FETCH_FAILED"));
     }
 
     @Test

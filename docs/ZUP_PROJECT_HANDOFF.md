@@ -13,6 +13,7 @@
 - 로컬 fixture HTML 및 E2E smoke guide 추가
 - 공식 출처 자동 수집 스케줄러 1차 구현
 - CollectionRun 수집 실행 이력 및 관리자 모니터링 화면
+- 관리자 대시보드 자동 수집 운영 요약 카드
 
 다음 검증:
 
@@ -21,6 +22,7 @@
 - VERIFIED 상태 Benefit이 Public 화면에 바로 노출되지 않는지 확인
 - 운영 전 robots.txt, 사이트 이용 조건, 요청 빈도 정책 확인
 - CollectionRun의 failureReason/errorMessage와 SourceWatch의 nextFetchAt/failureCount를 함께 확인
+- 최근 실패 SourceWatch는 URL 수정 또는 비활성화 여부 검토
 
 관련 문서:
 
@@ -39,6 +41,7 @@
 CollectionRun 메모:
 
 - `/admin/collection-runs`에서 최근 50개 실행 이력 확인
+- `/admin` 대시보드에서 최근 24시간 기준 운영 요약 확인
 - 수동 수집은 `MANUAL`, 스케줄러 수집은 `SCHEDULED`
 - `sameAsPrevious=true`는 정상 성공
 - 실패 원인은 `failureReason`과 `errorMessage`로 확인

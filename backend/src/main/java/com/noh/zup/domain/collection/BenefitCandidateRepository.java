@@ -7,6 +7,8 @@ public interface BenefitCandidateRepository extends JpaRepository<BenefitCandida
 
     List<BenefitCandidate> findAllByOrderByIdDesc();
 
+    long countByStatus(BenefitCandidateStatus status);
+
     boolean existsBySourceWatchIdAndSnapshotContentHashAndEvidenceText(
             Long sourceWatchId,
             String contentHash,

@@ -51,4 +51,25 @@ export type AdminDashboard = {
   receivedReportCount: number;
   reviewingReportCount: number;
   resolvedReportCount: number;
+  collectionSummary: CollectionSummary;
+};
+
+export type CollectionSummary = {
+  totalSourceWatchCount: number;
+  activeSourceWatchCount: number;
+  pendingCandidateCount: number;
+  recentSuccessRunCount: number;
+  recentFailedRunCount: number;
+  recentSkippedRunCount: number;
+  recentFailedRuns: CollectionFailedRunSummary[];
+};
+
+export type CollectionFailedRunSummary = {
+  runId: number;
+  sourceWatchId: number;
+  sourceWatchTitle: string;
+  brandName: string;
+  failureReason: string | null;
+  errorMessage: string | null;
+  startedAt: string;
 };

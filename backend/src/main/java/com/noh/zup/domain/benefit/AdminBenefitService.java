@@ -5,6 +5,7 @@ import com.noh.zup.common.exception.ErrorCode;
 import com.noh.zup.domain.brand.Brand;
 import com.noh.zup.domain.brand.BrandRepository;
 import com.noh.zup.domain.category.CategoryRepository;
+import com.noh.zup.domain.collection.CollectionDashboardService;
 import com.noh.zup.domain.source.BenefitSourceRepository;
 import com.noh.zup.domain.tag.Tag;
 import com.noh.zup.domain.tag.TagRepository;
@@ -32,6 +33,7 @@ public class AdminBenefitService {
     private final TagRepository tagRepository;
     private final VerificationLogRepository verificationLogRepository;
     private final UserReportRepository userReportRepository;
+    private final CollectionDashboardService collectionDashboardService;
 
     public AdminBenefitService(
             BenefitRepository benefitRepository,
@@ -41,7 +43,8 @@ public class AdminBenefitService {
             CategoryRepository categoryRepository,
             TagRepository tagRepository,
             VerificationLogRepository verificationLogRepository,
-            UserReportRepository userReportRepository
+            UserReportRepository userReportRepository,
+            CollectionDashboardService collectionDashboardService
     ) {
         this.benefitRepository = benefitRepository;
         this.benefitTagRepository = benefitTagRepository;
@@ -51,6 +54,7 @@ public class AdminBenefitService {
         this.tagRepository = tagRepository;
         this.verificationLogRepository = verificationLogRepository;
         this.userReportRepository = userReportRepository;
+        this.collectionDashboardService = collectionDashboardService;
     }
 
     @Transactional(readOnly = true)
@@ -239,7 +243,8 @@ public class AdminBenefitService {
                 tagRepository.count(),
                 userReportRepository.countByStatus(ReportStatus.RECEIVED),
                 userReportRepository.countByStatus(ReportStatus.REVIEWING),
-                userReportRepository.countByStatus(ReportStatus.RESOLVED)
+                userReportRepository.countByStatus(ReportStatus.RESOLVED),
+                collectionDashboardService.getSummary()
         );
     }
 

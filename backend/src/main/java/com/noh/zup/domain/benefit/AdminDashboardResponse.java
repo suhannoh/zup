@@ -1,5 +1,7 @@
 package com.noh.zup.domain.benefit;
 
+import com.noh.zup.domain.collection.CollectionSummaryResponse;
+
 public record AdminDashboardResponse(
         long brandCount,
         long publishedBenefitCount,
@@ -11,6 +13,7 @@ public record AdminDashboardResponse(
         long tagCount,
         long receivedReportCount,
         long reviewingReportCount,
-        long resolvedReportCount
+        long resolvedReportCount,
+        CollectionSummaryResponse collectionSummary
 ) {
 }

@@ -107,6 +107,16 @@ Candidate 승인은 자동 수집 후보를 내부 `Benefit` 도메인으로 옮
 
 운영 중 실패가 반복될 때는 CollectionRun의 `failureReason/errorMessage`와 SourceWatch의 `nextFetchAt/failureCount`를 함께 확인한다.
 
+관리자 대시보드(`/admin`)에서는 자동 수집 운영 요약을 확인할 수 있다. 요약 기준은 최근 24시간이다.
+
+- 전체 SourceWatch 수
+- 활성 SourceWatch 수
+- 검수 대기 Candidate 수
+- 최근 24시간 수집 성공/실패/스킵 수
+- 최근 24시간 내 최근 실패 SourceWatch 목록
+
+운영자는 최근 실패 SourceWatch를 확인한 뒤 URL을 수정하거나, 필요하면 SourceWatch를 비활성화해 과도한 재시도를 막는다.
+
 ## 11. 향후 스케줄러 확장
 
 1차 스케줄러는 구현되어 있지만 기본값은 비활성화되어 있다.
