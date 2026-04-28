@@ -1,0 +1,187 @@
+package com.noh.zup.domain.collection;
+
+import com.noh.zup.common.entity.BaseTimeEntity;
+import com.noh.zup.domain.benefit.BenefitType;
+import com.noh.zup.domain.benefit.BirthdayTimingType;
+import com.noh.zup.domain.benefit.OccasionType;
+import com.noh.zup.domain.brand.Brand;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Lob;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import java.math.BigDecimal;
+
+@Entity
+@Table(name = "benefit_candidates")
+public class BenefitCandidate extends BaseTimeEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "brand_id", nullable = false)
+    private Brand brand;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "source_watch_id", nullable = false)
+    private SourceWatch sourceWatch;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "snapshot_id", nullable = false)
+    private PageSnapshot snapshot;
+
+    @Column(nullable = false, length = 200)
+    private String title;
+
+    @Column(nullable = false, length = 500)
+    private String summary;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private BenefitType benefitType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private OccasionType occasionType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 50)
+    private BirthdayTimingType birthdayTimingType;
+
+    @Column(nullable = false)
+    private Boolean requiresApp;
+
+    @Column(nullable = false)
+    private Boolean requiresSignup;
+
+    @Column(nullable = false)
+    private Boolean requiresMembership;
+
+    @Lob
+    @Column(nullable = false)
+    private String evidenceText;
+
+    @Column(nullable = false, precision = 3, scale = 2)
+    private BigDecimal confidence;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private BenefitCandidateStatus status = BenefitCandidateStatus.NEEDS_REVIEW;
+
+    @Lob
+    private String reviewMemo;
+
+    protected BenefitCandidate() {
+    }
+
+    public BenefitCandidate(
+            Brand brand,
+            SourceWatch sourceWatch,
+            PageSnapshot snapshot,
+            String title,
+            String summary,
+            BenefitType benefitType,
+            OccasionType occasionType,
+            BirthdayTimingType birthdayTimingType,
+            Boolean requiresApp,
+            Boolean requiresSignup,
+            Boolean requiresMembership,
+            String evidenceText,
+            BigDecimal confidence
+    ) {
+        this.brand = brand;
+        this.sourceWatch = sourceWatch;
+        this.snapshot = snapshot;
+        this.title = title;
+        this.summary = summary;
+        this.benefitType = benefitType;
+        this.occasionType = occasionType;
+        this.birthdayTimingType = birthdayTimingType;
+        this.requiresApp = requiresApp;
+        this.requiresSignup = requiresSignup;
+        this.requiresMembership = requiresMembership;
+        this.evidenceText = evidenceText;
+        this.confidence = confidence;
+        this.status = BenefitCandidateStatus.NEEDS_REVIEW;
+    }
+
+    public void updateStatus(BenefitCandidateStatus status, String reviewMemo) {
+        this.status = status;
+        if (reviewMemo != null) {
+            this.reviewMemo = reviewMemo;
+        }
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public Brand getBrand() {
+        return brand;
+    }
+
+    public SourceWatch getSourceWatch() {
+        return sourceWatch;
+    }
+
+    public PageSnapshot getSnapshot() {
+        return snapshot;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public String getSummary() {
+        return summary;
+    }
+
+    public BenefitType getBenefitType() {
+        return benefitType;
+    }
+
+    public OccasionType getOccasionType() {
+        return occasionType;
+    }
+
+    public BirthdayTimingType getBirthdayTimingType() {
+        return birthdayTimingType;
+    }
+
+    public Boolean getRequiresApp() {
+        return requiresApp;
+    }
+
+    public Boolean getRequiresSignup() {
+        return requiresSignup;
+    }
+
+    public Boolean getRequiresMembership() {
+        return requiresMembership;
+    }
+
+    public String getEvidenceText() {
+        return evidenceText;
+    }
+
+    public BigDecimal getConfidence() {
+        return confidence;
+    }
+
+    public BenefitCandidateStatus getStatus() {
+        return status;
+    }
+
+    public String getReviewMemo() {
+        return reviewMemo;
+    }
+}
