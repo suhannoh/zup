@@ -1,0 +1,13 @@
+package com.noh.zup.domain.source;
+
+public enum SourceType {
+    OFFICIAL_HOME,
+    OFFICIAL_APP,
+    OFFICIAL_MEMBERSHIP,
+    OFFICIAL_FAQ,
+    OFFICIAL_NOTICE,
+    OFFICIAL_SNS,
+    CUSTOMER_CENTER,
+    BLOG_REFERENCE,
+    COMMUNITY_REFERENCE
+}
