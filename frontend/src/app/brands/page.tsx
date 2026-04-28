@@ -12,7 +12,10 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "브랜드별 생일 혜택 - Zup",
-  description: "카페, 외식, 영화관, 뷰티 브랜드의 생일 혜택을 한눈에 확인하세요.",
+  description: "카페, 외식, 영화관, 뷰티 브랜드의 생일 쿠폰과 무료 혜택을 브랜드별로 확인하세요.",
+  alternates: {
+    canonical: "/brands",
+  },
 };
 
 type BrandsPageProps = {
@@ -88,7 +91,10 @@ export default async function BrandsPage({ searchParams }: BrandsPageProps) {
           ))}
         </div>
       ) : (
-        <EmptyState title="조건에 맞는 브랜드가 없습니다." description="검색어를 줄이거나 다른 카테고리를 선택해 보세요." />
+        <EmptyState
+          title="조건에 맞는 브랜드가 없습니다."
+          description="검색어를 줄이거나 다른 카테고리를 선택해 보세요."
+        />
       )}
     </div>
   );

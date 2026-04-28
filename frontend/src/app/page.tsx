@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { BrandCard } from "@/components/public/BrandCard";
 import { CategoryPill } from "@/components/public/CategoryPill";
@@ -9,6 +10,15 @@ import type { Category } from "@/types/category";
 import type { Tag } from "@/types/tag";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Zup - 몰라서 못 받던 혜택, 오늘 줍자",
+  description:
+    "브랜드별 생일 혜택을 공식 출처 기준으로 정리하고, 앱 필요 여부·멤버십 조건·사용 기간까지 한눈에 확인하세요.",
+  alternates: {
+    canonical: "/",
+  },
+};
 
 async function safeList<T>(loader: () => Promise<T[]>) {
   try {

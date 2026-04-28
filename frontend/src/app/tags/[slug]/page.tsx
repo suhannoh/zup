@@ -16,16 +16,48 @@ type TagPageProps = {
   params: Promise<{ slug: string }>;
 };
 
-export const metadata: Metadata = {
-  title: "조건별 생일 혜택 - Zup",
-};
-
 async function safeList<T>(loader: () => Promise<T[]>) {
   try {
     return await loader();
   } catch {
     return [];
   }
+}
+
+export async function generateMetadata({ params }: TagPageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const tags = await safeList<Tag>(getTags);
+  const tag = tags.find((item) => item.slug === slug);
+
+  if (!tag) {
+    return {
+      title: "조건별 생일 혜택 - Zup",
+      description: "조건별 브랜드 생일 혜택을 확인하세요.",
+      alternates: {
+        canonical: `/tags/${slug}`,
+      },
+    };
+  }
+
+  const title = `${tag.name} 생일 혜택 - Zup`;
+  const description = `${tag.name} 조건에 해당하는 브랜드 생일 혜택을 확인하세요.`;
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: `/tags/${slug}`,
+    },
+    openGraph: {
+      title,
+      description,
+      url: `/tags/${slug}`,
+    },
+    twitter: {
+      title,
+      description,
+    },
+  };
 }
 
 export default async function TagPage({ params }: TagPageProps) {
@@ -50,7 +82,7 @@ export default async function TagPage({ params }: TagPageProps) {
     <div className="space-y-8">
       <SectionHeader
         title={`${tag?.name ?? slug} 조건의 생일 혜택`}
-        description="조건 태그 기준으로 공개된 혜택을 모아봅니다. 현재는 공식 검수 완료 혜택만 노출됩니다."
+        description="조건 태그 기준으로 공개된 혜택을 모아봅니다. 현재는 공식 검수 완료 혜택만 노출합니다."
       />
 
       {benefits.length > 0 ? (

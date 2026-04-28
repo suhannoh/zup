@@ -15,16 +15,48 @@ type CategoryPageProps = {
   params: Promise<{ slug: string }>;
 };
 
-export const metadata: Metadata = {
-  title: "카테고리별 생일 혜택 - Zup",
-};
-
 async function safeList<T>(loader: () => Promise<T[]>) {
   try {
     return await loader();
   } catch {
     return [];
   }
+}
+
+export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const categories = await safeList<Category>(getCategories);
+  const category = categories.find((item) => item.slug === slug);
+
+  if (!category) {
+    return {
+      title: "카테고리별 생일 혜택 - Zup",
+      description: "카테고리별 브랜드 생일 쿠폰과 무료 혜택을 확인하세요.",
+      alternates: {
+        canonical: `/categories/${slug}`,
+      },
+    };
+  }
+
+  const title = `${category.name} 생일 혜택 브랜드 - Zup`;
+  const description = `${category.name} 브랜드의 생일 쿠폰과 무료 혜택을 한눈에 확인하세요.`;
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: `/categories/${slug}`,
+    },
+    openGraph: {
+      title,
+      description,
+      url: `/categories/${slug}`,
+    },
+    twitter: {
+      title,
+      description,
+    },
+  };
 }
 
 export default async function CategoryPage({ params }: CategoryPageProps) {

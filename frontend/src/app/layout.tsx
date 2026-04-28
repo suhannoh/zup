@@ -1,12 +1,30 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/layout/Footer";
 import { Header } from "@/components/layout/Header";
+import { DEFAULT_DESCRIPTION, DEFAULT_KEYWORDS, DEFAULT_TITLE, SITE_URL } from "@/lib/seo";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Zup - 몰라서 못 받던 혜택, 오늘 줍자",
-  description:
-    "Zup은 브랜드별 생일 쿠폰과 무료 혜택을 공식 출처 기준으로 정리하는 정보 큐레이션 서비스입니다. 앱 필요 여부, 멤버십 조건, 사용 기간을 한눈에 확인하세요.",
+  metadataBase: new URL(SITE_URL),
+  title: DEFAULT_TITLE,
+  description: DEFAULT_DESCRIPTION,
+  keywords: DEFAULT_KEYWORDS,
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
+    type: "website",
+    siteName: "Zup",
+    locale: "ko_KR",
+    url: "/",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
+  },
 };
 
 export default function RootLayout({
