@@ -269,6 +269,9 @@ export function AdminBenefitCandidateDetailPanel({ candidateId }: { candidateId:
           <p className="mt-2 rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-800">
             승인된 후보는 VERIFIED 상태의 혜택으로 생성됩니다. PUBLISHED 전환 전까지 사용자 화면에는 노출되지 않습니다.
           </p>
+          <p className="mt-2 rounded-lg bg-neutral-50 p-3 text-sm leading-6 text-neutral-700">
+            기존 추출 품질이 낮은 후보는 REJECTED 처리하고, SourceWatch 화면에서 후보 재생성을 실행할 수 있습니다.
+          </p>
         </div>
         <TextInput label="title" value={approveForm.title} onChange={(title) => setApproveForm((current) => current && { ...current, title })} required />
         <TextArea label="summary" value={approveForm.summary} onChange={(summary) => setApproveForm((current) => current && { ...current, summary })} required />

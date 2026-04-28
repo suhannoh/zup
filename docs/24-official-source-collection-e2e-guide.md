@@ -167,3 +167,18 @@ Candidate 상세 화면에서는 `summary` 아래에 `구체 혜택 추정`과 `
 - `minimumPurchaseDescription` 기본값은 쿠폰별 최소 구매 금액과 사용 조건은 각 쿠폰 상세 안내를 확인해야 한다는 문장이다.
 
 자동 수집은 AI/Gemini/OpenAI 연동, Playwright 추가, 블로그/커뮤니티 수집, Candidate 자동 PUBLISHED, Public API Candidate 노출, 승인 없는 Benefit 생성을 하지 않는다.
+
+## 13. 기존 스냅샷 후보 재생성
+
+추출 로직 개선 후 기존 SourceWatch를 다시 수집하면 본문 hash가 같아 `sameAsPrevious=true`가 될 수 있다. 이 경우 `/admin/source-watches`에서 `후보 재생성`을 실행한다.
+
+재생성 동작:
+
+- 최신 `PageSnapshot.extractedText`를 개선된 Candidate 추출기로 다시 분석한다.
+- 외부 URL을 다시 fetch하지 않는다.
+- `CollectionRun`을 남기지 않는다.
+- 새 후보는 `NEEDS_REVIEW` 상태로 생성된다.
+- 기존 후보는 자동 삭제하거나 자동 `REJECTED` 처리하지 않는다.
+- 완전히 같은 후보는 중복으로 생성하지 않고 skip count로 표시한다.
+
+재생성 후 `/admin/benefit-candidates`에서 새 후보를 확인하고, 기존 긴 Candidate는 필요하면 직접 `REJECTED` 처리한다.

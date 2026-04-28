@@ -53,15 +53,29 @@ public class BenefitCandidateDetector {
     }
 
     public List<BenefitCandidate> detect(SourceWatch sourceWatch, PageSnapshot snapshot) {
+        List<BenefitCandidate> createdCandidates = new ArrayList<>();
+        detect(sourceWatch, snapshot, createdCandidates);
+        return createdCandidates;
+    }
+
+    public BenefitCandidateDetectionResult detectWithResult(SourceWatch sourceWatch, PageSnapshot snapshot) {
+        return detect(sourceWatch, snapshot, new ArrayList<>());
+    }
+
+    private BenefitCandidateDetectionResult detect(
+            SourceWatch sourceWatch,
+            PageSnapshot snapshot,
+            List<BenefitCandidate> createdCandidates
+    ) {
         String text = snapshot.getExtractedText();
         String lowerText = text.toLowerCase(Locale.ROOT);
         if (!containsBirthdayKeyword(lowerText) || BENEFIT_KEYWORDS.stream().noneMatch(lowerText::contains)) {
-            return List.of();
+            return new BenefitCandidateDetectionResult(0, 0);
         }
 
         String evidenceText = extractEvidenceText(text);
         if (!StringUtils.hasText(evidenceText)) {
-            return List.of();
+            return new BenefitCandidateDetectionResult(0, 0);
         }
         List<String> sentences = splitSentences(text);
         List<String> benefitDetails = extractBenefitDetails(sentences);
@@ -75,7 +89,7 @@ public class BenefitCandidateDetector {
                 snapshot.getContentHash(),
                 evidenceText
         )) {
-            return List.of();
+            return new BenefitCandidateDetectionResult(0, 1);
         }
 
         BenefitCandidate candidate = new BenefitCandidate(
@@ -95,7 +109,8 @@ public class BenefitCandidateDetector {
                 usageGuideText,
                 calculateConfidence(sourceWatch, lowerText)
         );
-        return List.of(benefitCandidateRepository.save(candidate));
+        createdCandidates.add(benefitCandidateRepository.save(candidate));
+        return new BenefitCandidateDetectionResult(1, 0);
     }
 
     private boolean containsBirthdayKeyword(String lowerText) {

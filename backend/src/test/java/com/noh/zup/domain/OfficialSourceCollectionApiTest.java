@@ -5,6 +5,8 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -18,6 +20,9 @@ import com.noh.zup.domain.brand.Brand;
 import com.noh.zup.domain.brand.BrandRepository;
 import com.noh.zup.domain.category.CategoryRepository;
 import com.noh.zup.domain.collection.CollectionTriggerType;
+import com.noh.zup.domain.collection.PageSnapshot;
+import com.noh.zup.domain.collection.PageSnapshotRepository;
+import com.noh.zup.domain.collection.SourceWatchRepository;
 import com.noh.zup.domain.collection.SourceWatchService;
 import com.noh.zup.domain.collection.fetch.FetchResult;
 import com.noh.zup.domain.collection.fetch.OfficialSourceFetcher;
@@ -61,6 +66,12 @@ class OfficialSourceCollectionApiTest {
 
     @Autowired
     private SourceWatchService sourceWatchService;
+
+    @Autowired
+    private SourceWatchRepository sourceWatchRepository;
+
+    @Autowired
+    private PageSnapshotRepository pageSnapshotRepository;
 
     @MockBean
     private OfficialSourceFetcher officialSourceFetcher;
@@ -216,6 +227,83 @@ class OfficialSourceCollectionApiTest {
                 .andExpect(jsonPath("$.data[0].status").value("SUCCESS"))
                 .andExpect(jsonPath("$.data[0].sameAsPrevious").value(true))
                 .andExpect(jsonPath("$.data[0].candidateCount").value(0));
+    }
+
+    @Test
+    void regenerateCandidatesUsesLatestSnapshotWithoutFetchOrCollectionRun() throws Exception {
+        Long brandId = ensureBrand("CJ ONE", "cj-one", "movie-culture");
+        Long sourceWatchId = createSourceWatch(brandId, "CJ ONE regenerate page");
+        var sourceWatch = sourceWatchRepository.findById(sourceWatchId).orElseThrow();
+        PageSnapshot snapshot = pageSnapshotRepository.save(new PageSnapshot(
+                sourceWatch,
+                "regenerate-hash-1",
+                extractedBirthdayCouponText(),
+                false
+        ));
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/regenerate-candidates", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("candidate regeneration completed"))
+                .andExpect(jsonPath("$.data.sourceWatchId").value(sourceWatchId))
+                .andExpect(jsonPath("$.data.snapshotId").value(snapshot.getId()))
+                .andExpect(jsonPath("$.data.createdCandidateCount").value(1))
+                .andExpect(jsonPath("$.data.skippedDuplicateCount").value(0));
+
+        verify(officialSourceFetcher, never()).fetch(anyString());
+
+        long candidateId = getCandidateIdBySourceWatch(sourceWatchId);
+        mockMvc.perform(get("/api/v1/admin/benefit-candidates/{id}", candidateId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("NEEDS_REVIEW"))
+                .andExpect(jsonPath("$.data.title").value("CJ ONE 생일축하 10종 쿠폰"))
+                .andExpect(jsonPath("$.data.benefitDetailText").exists())
+                .andExpect(jsonPath("$.data.usageGuideText").exists());
+
+        mockMvc.perform(get("/api/v1/admin/source-watches/{id}/collection-runs", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", empty()));
+    }
+
+    @Test
+    void regenerateCandidatesFailsWhenLatestSnapshotDoesNotExist() throws Exception {
+        Long brandId = brandRepository.findBySlug("starbucks").orElseThrow().getId();
+        Long sourceWatchId = createSourceWatch(brandId, "No snapshot regenerate page");
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/regenerate-candidates", sourceWatchId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Latest PageSnapshot not found"));
+
+        verify(officialSourceFetcher, never()).fetch(anyString());
+        mockMvc.perform(get("/api/v1/admin/source-watches/{id}/collection-runs", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", empty()));
+    }
+
+    @Test
+    void regenerateCandidatesSkipsDuplicateCandidate() throws Exception {
+        Long brandId = ensureBrand("CJ ONE", "cj-one", "movie-culture");
+        Long sourceWatchId = createSourceWatch(brandId, "CJ ONE duplicate regenerate page");
+        var sourceWatch = sourceWatchRepository.findById(sourceWatchId).orElseThrow();
+        pageSnapshotRepository.save(new PageSnapshot(
+                sourceWatch,
+                "regenerate-hash-2",
+                extractedBirthdayCouponText(),
+                false
+        ));
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/regenerate-candidates", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.createdCandidateCount").value(1))
+                .andExpect(jsonPath("$.data.skippedDuplicateCount").value(0));
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/regenerate-candidates", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.createdCandidateCount").value(0))
+                .andExpect(jsonPath("$.data.skippedDuplicateCount").value(1));
+
+        mockMvc.perform(get("/api/v1/admin/benefit-candidates"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.sourceWatchId == " + sourceWatchId + ")]", hasSize(1)));
     }
 
     @Test
@@ -532,6 +620,22 @@ class OfficialSourceCollectionApiTest {
                         </main>
                     </body>
                 </html>
+                """;
+    }
+
+    private String extractedBirthdayCouponText() {
+        return """
+                생일 축하 10종 쿠폰 증정
+                CGV 매점 콤보 구매 시 50% 할인
+                VIPS 10,000원 할인
+                계절밥상 3,000원 할인
+                더플레이스 리코타 프루타 샐러드 1개 무료
+                CJ THE MARKET 3,000원 중복 할인
+                이용안내
+                CJ ONE 회원만 이용 가능합니다.
+                CJ ONE 쿠폰은 현금으로 교환 및 타인에게 양도할 수 없습니다.
+                생일축하쿠폰은 1년에 1번 지급되며, 한번 발급되면 추가 발급되지 않습니다.
+                CJ ONE 회원정보에 등록된 생년월일을 기준으로 쿠폰이 발급됩니다.
                 """;
     }
 

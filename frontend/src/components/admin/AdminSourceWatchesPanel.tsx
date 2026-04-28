@@ -7,12 +7,17 @@ import {
   createSourceWatch,
   getAdminBrands,
   getSourceWatches,
+  regenerateSourceWatchCandidates,
   updateSourceWatch,
   updateSourceWatchActive,
 } from "@/lib/api/adminApi";
 import type { SourceType } from "@/types/adminBenefitSource";
 import type { AdminBrand } from "@/types/adminBrand";
-import type { SourceWatch, SourceWatchCollectResponse } from "@/types/sourceWatch";
+import type {
+  SourceWatch,
+  SourceWatchCollectResponse,
+  SourceWatchRegenerateCandidatesResponse,
+} from "@/types/sourceWatch";
 
 type FormState = {
   brandId: string;
@@ -100,9 +105,11 @@ export function AdminSourceWatchesPanel() {
   const [saving, setSaving] = useState(false);
   const [deactivatingFixtures, setDeactivatingFixtures] = useState(false);
   const [collectingId, setCollectingId] = useState<number | null>(null);
+  const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [collectResults, setCollectResults] = useState<Record<number, SourceWatchCollectResponse>>({});
+  const [regenerateResults, setRegenerateResults] = useState<Record<number, SourceWatchRegenerateCandidatesResponse>>({});
 
   async function loadAll() {
     setLoading(true);
@@ -193,6 +200,21 @@ export function AdminSourceWatchesPanel() {
       setError(getErrorMessage(collectError, "수집 실패"));
     } finally {
       setCollectingId(null);
+    }
+  }
+
+  async function handleRegenerate(sourceWatch: SourceWatch) {
+    setRegeneratingId(sourceWatch.id);
+    setMessage(null);
+    setError(null);
+    try {
+      const result = await regenerateSourceWatchCandidates(sourceWatch.id);
+      setRegenerateResults((current) => ({ ...current, [sourceWatch.id]: result }));
+      setMessage(`후보 재생성 완료: 신규 ${result.createdCandidateCount}개, 중복 ${result.skippedDuplicateCount}개`);
+    } catch (regenerateError) {
+      setError(`후보 재생성 실패: ${getErrorMessage(regenerateError, "최신 스냅샷이 없습니다.")}`);
+    } finally {
+      setRegeneratingId(null);
     }
   }
 
@@ -339,6 +361,15 @@ export function AdminSourceWatchesPanel() {
                   >
                     {collectingId === sourceWatch.id ? "수집 중" : "수집 실행"}
                   </button>
+                  <button
+                    className="h-9 rounded-lg border border-accent px-3 text-sm font-semibold text-accent disabled:opacity-60"
+                    type="button"
+                    disabled={regeneratingId === sourceWatch.id}
+                    onClick={() => handleRegenerate(sourceWatch)}
+                    title="기존 최신 스냅샷을 개선된 추출 규칙으로 다시 분석합니다. 외부 URL을 다시 호출하지 않습니다."
+                  >
+                    {regeneratingId === sourceWatch.id ? "재생성 중" : "후보 재생성"}
+                  </button>
                   <Link className="h-9 rounded-lg border border-border px-3 py-2 text-sm font-semibold" href="/admin/collection-runs">
                     최근 수집 이력 보기
                   </Link>
@@ -355,6 +386,16 @@ export function AdminSourceWatchesPanel() {
                 <div className="mt-4 rounded-lg bg-blue-50 p-3 text-sm text-blue-800">
                   수집 완료 · candidateCount: {collectResults[sourceWatch.id].candidateCount} · sameAsPrevious:{" "}
                   {String(collectResults[sourceWatch.id].sameAsPrevious)}
+                </div>
+              ) : null}
+              {regenerateResults[sourceWatch.id] ? (
+                <div className="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-800">
+                  후보 재생성 완료 · 신규: {regenerateResults[sourceWatch.id].createdCandidateCount} · 중복:{" "}
+                  {regenerateResults[sourceWatch.id].skippedDuplicateCount} · snapshotId:{" "}
+                  {regenerateResults[sourceWatch.id].snapshotId}
+                  <Link className="ml-3 font-semibold underline" href="/admin/benefit-candidates">
+                    후보 목록 보기
+                  </Link>
                 </div>
               ) : null}
             </article>

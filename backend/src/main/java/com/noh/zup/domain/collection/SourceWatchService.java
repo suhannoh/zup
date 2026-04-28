@@ -5,6 +5,7 @@ import com.noh.zup.common.exception.ErrorCode;
 import com.noh.zup.domain.brand.Brand;
 import com.noh.zup.domain.brand.BrandRepository;
 import com.noh.zup.domain.collection.candidate.BenefitCandidateDetector;
+import com.noh.zup.domain.collection.candidate.BenefitCandidateDetectionResult;
 import com.noh.zup.domain.collection.extract.ExtractedText;
 import com.noh.zup.domain.collection.extract.HtmlTextExtractor;
 import com.noh.zup.domain.collection.fetch.FetchResult;
@@ -90,6 +91,22 @@ public class SourceWatchService {
     @Transactional
     public SourceWatchCollectResponse collect(Long id) {
         return collect(id, CollectionTriggerType.MANUAL);
+    }
+
+    @Transactional
+    public SourceWatchRegenerateCandidatesResponse regenerateCandidates(Long id) {
+        SourceWatch sourceWatch = getSourceWatch(id);
+        PageSnapshot snapshot = pageSnapshotRepository.findTopBySourceWatchIdOrderByFetchedAtDescIdDesc(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_REQUEST, "Latest PageSnapshot not found"));
+
+        BenefitCandidateDetectionResult result = benefitCandidateDetector.detectWithResult(sourceWatch, snapshot);
+        return new SourceWatchRegenerateCandidatesResponse(
+                sourceWatch.getId(),
+                snapshot.getId(),
+                result.createdCandidateCount(),
+                result.skippedDuplicateCount(),
+                "candidate regeneration completed"
+        );
     }
 
     @Transactional

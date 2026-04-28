@@ -55,6 +55,9 @@ Candidate 정제 메모:
 - 자동 수집은 생일 혜택 존재 여부뿐 아니라 구체 혜택 목록과 이용안내를 분리해 `benefitDetailText`, `usageGuideText`에 저장한다.
 - 운영자는 `benefitDetailText`와 `usageGuideText`를 검수한 뒤 승인 폼의 `summary`와 `usageCondition`을 정리해 Benefit으로 승인한다.
 - 승인 폼의 `usageCondition` 기본값은 `usageGuideText` 우선, 없으면 `evidenceText` fallback이다.
+- 추출 로직 개선 후 기존 스냅샷을 재분석하려면 `/admin/source-watches`에서 `후보 재생성`을 실행한다.
+- 후보 재생성은 최신 `PageSnapshot.extractedText`를 사용하며 외부 URL fetch와 `CollectionRun` 생성을 하지 않는다.
+- 재생성된 후보는 `NEEDS_REVIEW` 상태이고, 기존 후보는 자동 삭제/자동 반려하지 않는다.
 - 기존에 길게 생성된 Candidate는 필요하면 `REJECTED` 처리 후 재수집한다.
 
 다음 단계:

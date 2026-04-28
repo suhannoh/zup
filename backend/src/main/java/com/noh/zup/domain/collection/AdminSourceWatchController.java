@@ -54,4 +54,12 @@ public class AdminSourceWatchController {
     public ApiResponse<SourceWatchCollectResponse> collect(@PathVariable Long id) {
         return ApiResponse.success(sourceWatchService.collect(id), "source watch collected");
     }
+
+    @PostMapping("/{id}/regenerate-candidates")
+    public ApiResponse<SourceWatchRegenerateCandidatesResponse> regenerateCandidates(@PathVariable Long id) {
+        return ApiResponse.success(
+                sourceWatchService.regenerateCandidates(id),
+                "candidate regeneration completed"
+        );
+    }
 }

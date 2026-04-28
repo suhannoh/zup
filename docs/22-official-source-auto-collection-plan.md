@@ -153,6 +153,8 @@ HTML 추출 단계에서는 `script`, `style`, `noscript`, `header`, `footer`, `
 
 운영자는 `benefitDetailText`와 `usageGuideText`를 검수한 뒤 승인 폼의 `summary`와 `usageCondition`을 정리해 Benefit으로 승인한다. Candidate는 자동으로 PUBLISHED 되지 않으며, 승인 없이 Benefit을 생성하지 않는다.
 
+추출 로직을 개선한 뒤에는 기존 `PageSnapshot`의 `extractedText`를 재분석해 Candidate를 다시 만들 수 있다. `POST /api/v1/admin/source-watches/{id}/regenerate-candidates`는 최신 스냅샷을 사용하며 외부 URL fetch를 수행하지 않는다. 생성된 후보는 `NEEDS_REVIEW` 상태로 검수 대기하고, 기존 후보는 자동 삭제 또는 자동 반려하지 않는다. 품질이 낮은 기존 후보는 운영자가 직접 `REJECTED` 처리한다.
+
 ## 13. 공식 출처 원칙
 
 등록 대상은 브랜드 공식 홈페이지, 공식 앱 안내, 공식 멤버십, 공식 FAQ, 공식 공지, 공식 SNS, 고객센터 등 확인 가능한 공식 출처 URL로 제한한다. 블로그, 커뮤니티, 인터넷 전체 검색 크롤링은 수집 대상이 아니다.

@@ -27,6 +27,7 @@ import type {
   SourceWatch,
   SourceWatchCollectResponse,
   SourceWatchCreateRequest,
+  SourceWatchRegenerateCandidatesResponse,
   SourceWatchUpdateRequest,
 } from "@/types/sourceWatch";
 import type {
@@ -284,6 +285,13 @@ export async function collectSourceWatch(sourceWatchId: number) {
     `/api/v1/admin/source-watches/${sourceWatchId}/collect`,
     undefined,
     { timeout: 15000 }
+  );
+  return response.data.data;
+}
+
+export async function regenerateSourceWatchCandidates(sourceWatchId: number) {
+  const response = await adminApiClient.post<ApiResponse<SourceWatchRegenerateCandidatesResponse>>(
+    `/api/v1/admin/source-watches/${sourceWatchId}/regenerate-candidates`
   );
   return response.data.data;
 }

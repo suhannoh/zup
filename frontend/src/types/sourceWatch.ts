@@ -36,3 +36,11 @@ export type SourceWatchCollectResponse = {
   candidateCount: number;
   message: string;
 };
+
+export type SourceWatchRegenerateCandidatesResponse = {
+  sourceWatchId: number;
+  snapshotId: number;
+  createdCandidateCount: number;
+  skippedDuplicateCount: number;
+  message: string;
+};
