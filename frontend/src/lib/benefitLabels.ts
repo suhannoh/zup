@@ -10,7 +10,7 @@ export const BENEFIT_TYPE_LABELS: Record<BenefitType, string> = {
   DISCOUNT: "할인",
   COUPON: "쿠폰",
   POINT: "포인트",
-  GIFT: "선물",
+  GIFT: "증정",
   UPGRADE: "업그레이드",
   ETC: "기타",
 };
@@ -20,15 +20,15 @@ export const BIRTHDAY_TIMING_LABELS: Record<BirthdayTimingType, string> = {
   BIRTHDAY_MONTH: "생일월",
   BEFORE_AFTER_DAYS: "생일 전후",
   ISSUED_BEFORE_BIRTHDAY: "생일 전 발급",
-  UNKNOWN: "확인 필요",
+  UNKNOWN: "알 수 없음",
 };
 
 export const VERIFICATION_STATUS_LABELS: Record<VerificationStatus, string> = {
-  DRAFT: "작성 중",
+  DRAFT: "초안",
   NEEDS_CHECK: "검수 필요",
-  VERIFIED: "검수 완료",
-  PUBLISHED: "게시 중",
-  EXPIRED: "종료됨",
+  VERIFIED: "검증 완료",
+  PUBLISHED: "공개 중",
+  EXPIRED: "종료",
   HIDDEN: "숨김",
 };
 

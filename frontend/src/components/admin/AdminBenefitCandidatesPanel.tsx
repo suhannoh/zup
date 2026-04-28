@@ -3,16 +3,10 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getBenefitCandidates } from "@/lib/api/adminApi";
+import { CANDIDATE_STATUS_CLASS, CANDIDATE_STATUS_LABELS } from "@/lib/adminLabels";
 import type { BenefitCandidate, BenefitCandidateStatus } from "@/types/benefitCandidate";
 
 const statusOptions: Array<BenefitCandidateStatus | "ALL"> = ["ALL", "NEEDS_REVIEW", "APPROVED", "REJECTED"];
-
-const statusClass: Record<BenefitCandidateStatus, string> = {
-  DETECTED: "bg-blue-50 text-blue-700",
-  NEEDS_REVIEW: "bg-amber-50 text-amber-700",
-  APPROVED: "bg-green-50 text-green-700",
-  REJECTED: "bg-red-50 text-red-700",
-};
 
 function formatDateTime(value: string | null) {
   if (!value) {
@@ -69,54 +63,52 @@ export function AdminBenefitCandidatesPanel() {
 
   return (
     <section className="space-y-5">
-      <div className="rounded-lg border border-border bg-white p-4">
-        <label className="block max-w-xs space-y-2 text-sm font-medium">
+      <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+        <label className="block max-w-xs space-y-2 text-sm font-semibold">
           <span>상태 필터</span>
           <select
-            className="h-11 w-full rounded-lg border border-border bg-white px-3 text-sm"
+            className="h-11 w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm"
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value as BenefitCandidateStatus | "ALL")}
           >
             {statusOptions.map((status) => (
               <option key={status} value={status}>
-                {status === "ALL" ? "전체" : status}
+                {status === "ALL" ? "전체" : CANDIDATE_STATUS_LABELS[status]}
               </option>
             ))}
           </select>
         </label>
       </div>
 
-      {error ? <Notice tone="error">{error}</Notice> : null}
+      {error ? <Notice>{error}</Notice> : null}
       {loading ? <EmptyBox>혜택 후보 목록을 불러오는 중입니다.</EmptyBox> : null}
       {!loading && filteredCandidates.length === 0 ? <EmptyBox>표시할 혜택 후보가 없습니다.</EmptyBox> : null}
 
       <div className="space-y-4">
         {filteredCandidates.map((candidate) => (
-          <article key={candidate.id} className="rounded-lg border border-border bg-white p-5">
+          <article key={candidate.id} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-lg font-semibold">{candidate.title}</h2>
-                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClass[candidate.status]}`}>
-                    {candidate.status}
+                  <h2 className="text-lg font-bold">{candidate.title}</h2>
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${CANDIDATE_STATUS_CLASS[candidate.status]}`}>
+                    {CANDIDATE_STATUS_LABELS[candidate.status]}
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-neutral-500">
-                  {candidate.brandName} · confidence {Number(candidate.confidence).toFixed(2)}
+                  {candidate.brandName} · 신뢰도 {Number(candidate.confidence).toFixed(2)}
                 </p>
               </div>
-              <Link className="h-9 rounded-lg border border-border px-3 py-2 text-sm font-semibold" href={`/admin/benefit-candidates/${candidate.id}`}>
-                상세 보기
+              <Link className="h-10 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white" href={`/admin/benefit-candidates/${candidate.id}`}>
+                검수하기
               </Link>
             </div>
             <p className="mt-4 text-sm leading-6 text-neutral-700">{candidate.summary}</p>
-            <p className="mt-3 line-clamp-2 rounded-lg bg-neutral-50 p-3 text-sm leading-6 text-neutral-600">
-              {candidate.evidenceText}
-            </p>
-            <dl className="mt-4 grid gap-3 text-sm md:grid-cols-3">
-              <Info label="sourceWatchId" value={String(candidate.sourceWatchId)} />
-              <Info label="approvedBenefitId" value={candidate.approvedBenefitId ? String(candidate.approvedBenefitId) : "-"} />
-              <Info label="approvedAt" value={formatDateTime(candidate.approvedAt)} />
+            <dl className="mt-4 grid gap-3 text-sm md:grid-cols-4">
+              <Info label="수집 출처 ID" value={String(candidate.sourceWatchId)} />
+              <Info label="생성 일시" value={formatDateTime(candidate.createdAt)} />
+              <Info label="생성된 혜택 ID" value={candidate.approvedBenefitId ? String(candidate.approvedBenefitId) : "-"} />
+              <Info label="승인 일시" value={formatDateTime(candidate.approvedAt)} />
             </dl>
           </article>
         ))}
@@ -135,9 +127,9 @@ function Info({ label, value }: { label: string; value: string }) {
 }
 
 function EmptyBox({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-lg border border-border bg-white p-8 text-center text-sm text-neutral-600">{children}</div>;
+  return <div className="rounded-2xl border border-neutral-200 bg-white p-8 text-center text-sm text-neutral-600 shadow-sm">{children}</div>;
 }
 
-function Notice({ children, tone }: { children: React.ReactNode; tone: "error" }) {
-  return <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{children}</div>;
+function Notice({ children }: { children: React.ReactNode }) {
+  return <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{children}</div>;
 }

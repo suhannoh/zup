@@ -59,6 +59,27 @@ export type AdminBenefit = {
   updatedAt: string;
   tags: AdminBenefitTag[];
   sources: AdminBenefitSourceSummary[];
+  detailItems?: AdminBenefitDetailItem[];
+};
+
+export type AdminBenefitDetailItem = {
+  id: number;
+  brandName: string | null;
+  title: string;
+  description: string | null;
+  conditionText: string | null;
+  imageUrl: string | null;
+  displayOrder: number;
+  isActive: boolean;
+};
+
+export type AdminBenefitDetailItemRequest = {
+  brandName?: string | null;
+  title?: string | null;
+  description?: string | null;
+  conditionText?: string | null;
+  imageUrl?: string | null;
+  displayOrder?: number | null;
 };
 
 export type AdminBenefitTag = {

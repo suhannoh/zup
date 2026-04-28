@@ -23,6 +23,7 @@ export type BenefitCandidate = {
   requiresMembership: boolean;
   evidenceText: string;
   benefitDetailText?: string | null;
+  benefitDetailImageSources?: string | null;
   usageGuideText?: string | null;
   confidence: number;
   status: BenefitCandidateStatus;
@@ -46,6 +47,16 @@ export type BenefitCandidateApproveRequest = {
   minimumPurchaseDescription?: string | null;
   usageCondition?: string | null;
   adminMemo?: string | null;
+  detailItems?: BenefitCandidateDetailItemRequest[] | null;
+};
+
+export type BenefitCandidateDetailItemRequest = {
+  brandName?: string | null;
+  title?: string | null;
+  description?: string | null;
+  conditionText?: string | null;
+  imageUrl?: string | null;
+  displayOrder?: number | null;
 };
 
 export type BenefitCandidateApproveResponse = {

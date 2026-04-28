@@ -15,18 +15,25 @@ public record BenefitListResponse(
         BenefitType benefitType,
         OccasionType occasionType,
         BirthdayTimingType birthdayTimingType,
+        String conditionSummary,
         Boolean requiredApp,
         Boolean requiredMembership,
         Boolean requiredPurchase,
+        String membershipGrade,
         String usagePeriodDescription,
+        LocalDate availableFrom,
+        LocalDate availableTo,
+        String caution,
         LocalDate lastVerifiedAt,
         List<BenefitTagResponse> tags,
-        List<BenefitSourceResponse> sources
+        List<BenefitSourceResponse> sources,
+        List<BenefitDetailItemResponse> detailItems
 ) {
     public static BenefitListResponse of(
             Benefit benefit,
             List<BenefitTagResponse> tags,
-            List<BenefitSourceResponse> sources
+            List<BenefitSourceResponse> sources,
+            List<BenefitDetailItemResponse> detailItems
     ) {
         return new BenefitListResponse(
                 benefit.getId(),
@@ -40,13 +47,19 @@ public record BenefitListResponse(
                 benefit.getBenefitType(),
                 benefit.getOccasionType(),
                 benefit.getBirthdayTimingType(),
+                benefit.getConditionSummary(),
                 benefit.getRequiredApp(),
                 benefit.getRequiredMembership(),
                 benefit.getRequiredPurchase(),
+                benefit.getMembershipGrade(),
                 benefit.getUsagePeriodDescription(),
+                benefit.getAvailableFrom(),
+                benefit.getAvailableTo(),
+                benefit.getCaution(),
                 benefit.getLastVerifiedAt(),
                 tags,
-                sources
+                sources,
+                detailItems
         );
     }
 }

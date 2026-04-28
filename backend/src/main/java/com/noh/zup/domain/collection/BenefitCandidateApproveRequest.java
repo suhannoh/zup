@@ -3,6 +3,8 @@ package com.noh.zup.domain.collection;
 import com.noh.zup.domain.benefit.BenefitType;
 import com.noh.zup.domain.benefit.BirthdayTimingType;
 import com.noh.zup.domain.benefit.OccasionType;
+import jakarta.validation.Valid;
+import java.util.List;
 
 public record BenefitCandidateApproveRequest(
         String title,
@@ -16,6 +18,7 @@ public record BenefitCandidateApproveRequest(
         Boolean requiresMembership,
         String minimumPurchaseDescription,
         String usageCondition,
-        String adminMemo
+        String adminMemo,
+        @Valid List<BenefitDetailItemApproveRequest> detailItems
 ) {
 }

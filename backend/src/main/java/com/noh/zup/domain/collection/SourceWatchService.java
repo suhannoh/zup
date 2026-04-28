@@ -127,7 +127,7 @@ public class SourceWatchService {
                 return new SourceWatchCollectResponse(id, false, false, 0, fetchResult.failureReason());
             }
 
-            ExtractedText extractedText = htmlTextExtractor.extract(fetchResult.html());
+            ExtractedText extractedText = htmlTextExtractor.extract(fetchResult.html(), sourceWatch.getUrl());
             if (!extractedText.success()) {
                 sourceWatch.markFailed();
                 collectionRun.completeFailed(true, "EXTRACT_FAILED", extractedText.failureReason());
@@ -140,6 +140,7 @@ public class SourceWatchService {
                     sourceWatch,
                     contentHash,
                     extractedText.text(),
+                    extractedText.benefitDetailImageSources(),
                     sameAsPrevious
             ));
 

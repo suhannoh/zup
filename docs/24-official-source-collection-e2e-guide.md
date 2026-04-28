@@ -162,11 +162,14 @@ Candidate 상세 화면에서는 `summary` 아래에 `구체 혜택 추정`과 `
 검수자는 아래를 확인한 뒤 Benefit 승인 폼을 정리한다.
 
 - `benefitDetailText`: 할인 금액, 할인율, 무료/증정 상품, 제휴 브랜드별 쿠폰 내용이 들어있는지 확인
+- `benefitDetailImageSources`: 쿠폰 row 주변 이미지 `src`, `alt`, `title`이 들어있는지 확인. `src`는 링크로 열어 로고를 사람이 검수한다.
 - `usageGuideText`: 회원 전용, 현금 교환 불가, 타인 양도 불가, 발급 횟수, 생년월일 기준, 유효기간/사용 조건 안내가 들어있는지 확인
 - 승인 폼의 `usageCondition`은 `usageGuideText`가 있으면 이를 기본값으로 사용하고, 없으면 `evidenceText`를 사용한다.
 - `minimumPurchaseDescription` 기본값은 쿠폰별 최소 구매 금액과 사용 조건은 각 쿠폰 상세 안내를 확인해야 한다는 문장이다.
 
-자동 수집은 AI/Gemini/OpenAI 연동, Playwright 추가, 블로그/커뮤니티 수집, Candidate 자동 PUBLISHED, Public API Candidate 노출, 승인 없는 Benefit 생성을 하지 않는다.
+브랜드명이 이미지 로고로만 제공되면 자동으로 브랜드명을 단정하지 않는다. 이미지 OCR은 사용하지 않고, 이미지 파일명만 보고 `CGV`, `VIPS` 같은 브랜드명을 확정하지 않는다. `alt`/`title`이 있으면 참고값으로 확인하되 최종 판단은 관리자가 한다.
+
+자동 수집은 AI/Gemini/OpenAI 연동, OCR, Playwright 추가, 블로그/커뮤니티 수집, Candidate 자동 PUBLISHED, Public API Candidate 노출, 승인 없는 Benefit 생성을 하지 않는다.
 
 ## 13. 기존 스냅샷 후보 재생성
 

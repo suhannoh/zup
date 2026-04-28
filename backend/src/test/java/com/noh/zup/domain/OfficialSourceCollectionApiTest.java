@@ -27,6 +27,7 @@ import com.noh.zup.domain.collection.SourceWatchService;
 import com.noh.zup.domain.collection.fetch.FetchResult;
 import com.noh.zup.domain.collection.fetch.OfficialSourceFetcher;
 import java.util.Map;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -200,6 +201,113 @@ class OfficialSourceCollectionApiTest {
         mockMvc.perform(get("/api/v1/admin/benefits/{id}", benefitId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.conditionSummary").value(org.hamcrest.Matchers.containsString("회원만 이용")));
+    }
+
+    @Test
+    void approveCandidateCreatesBenefitDetailItemsAndSkipsBlankTitles() throws Exception {
+        when(officialSourceFetcher.fetch(anyString())).thenReturn(FetchResult.success(200, cjOneBirthdayCouponHtml()));
+        Long brandId = ensureBrand("CJ ONE", "cj-one", "movie-culture");
+        Long sourceWatchId = createSourceWatch(brandId, "CJ ONE detail item approval page");
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.candidateCount").value(1));
+
+        long candidateId = getCandidateIdBySourceWatch(sourceWatchId);
+        MvcResult approveResult = mockMvc.perform(post("/api/v1/admin/benefit-candidates/{id}/approve", candidateId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "detailItems", List.of(
+                                        Map.of(
+                                                "brandName", "",
+                                                "title", "매점 콤보 구매 시 50% 할인",
+                                                "description", "",
+                                                "conditionText", "",
+                                                "imageUrl", "https://example.com/cgv-logo.png",
+                                                "displayOrder", 1
+                                        ),
+                                        Map.of(
+                                                "brandName", "VIPS",
+                                                "title", "4만원 이상 주문 시 10,000원 할인",
+                                                "description", "",
+                                                "conditionText", "4만원 이상 주문 시",
+                                                "imageUrl", "",
+                                                "displayOrder", 2
+                                        ),
+                                        Map.of("title", "   ", "displayOrder", 3)
+                                )
+                        ))))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        long benefitId = objectMapper.readTree(approveResult.getResponse().getContentAsByteArray())
+                .get("data")
+                .get("benefitId")
+                .asLong();
+
+        mockMvc.perform(get("/api/v1/admin/benefits/{id}/detail-items", benefitId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(2)))
+                .andExpect(jsonPath("$.data[0].title").value("매점 콤보 구매 시 50% 할인"))
+                .andExpect(jsonPath("$.data[0].brandName").doesNotExist())
+                .andExpect(jsonPath("$.data[0].imageUrl").value("https://example.com/cgv-logo.png"))
+                .andExpect(jsonPath("$.data[1].brandName").value("VIPS"));
+    }
+
+    @Test
+    void collectExtractsCouponRowImageSourcesWithoutInferringBrandNameFromFileName() throws Exception {
+        when(officialSourceFetcher.fetch(anyString())).thenReturn(FetchResult.success(200, couponRowImageHtml()));
+        Long brandId = ensureBrand("CJ ONE", "cj-one", "movie-culture");
+        Long sourceWatchId = createSourceWatch(brandId, "CJ ONE coupon row image page");
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.candidateCount").value(1));
+
+        long candidateId = getCandidateIdBySourceWatch(sourceWatchId);
+        MvcResult result = mockMvc.perform(get("/api/v1/admin/benefit-candidates/{id}", candidateId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.benefitDetailImageSources").exists())
+                .andReturn();
+
+        JsonNode candidate = objectMapper.readTree(result.getResponse().getContentAsByteArray()).get("data");
+        String benefitDetailText = candidate.get("benefitDetailText").asText();
+        String benefitDetailImageSources = candidate.get("benefitDetailImageSources").asText();
+        String summary = candidate.get("summary").asText();
+
+        assertThat(benefitDetailText).contains("매점 콤보 구매 시 50% 할인", "4만원 이상 주문 시 10,000원 할인");
+        assertThat(benefitDetailText).doesNotContain("[생일축하]");
+        assertThat(benefitDetailImageSources)
+                .contains("쿠폰: 매점 콤보 구매 시 50% 할인")
+                .contains("imgSrc: https://example.com/images/cgv-logo.png")
+                .contains("imgAlt: ")
+                .contains("imgSrc: https://example.com/images/vips-logo.png");
+        assertThat(summary).contains("여러 제휴 브랜드");
+        assertThat(summary).doesNotContain("CGV", "VIPS");
+    }
+
+    @Test
+    void collectStoresImageAltAsReviewReferenceOnly() throws Exception {
+        when(officialSourceFetcher.fetch(anyString())).thenReturn(FetchResult.success(200, couponRowImageWithAltHtml()));
+        Long brandId = ensureBrand("CJ ONE", "cj-one", "movie-culture");
+        Long sourceWatchId = createSourceWatch(brandId, "CJ ONE coupon row image alt page");
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.candidateCount").value(1));
+
+        long candidateId = getCandidateIdBySourceWatch(sourceWatchId);
+        MvcResult result = mockMvc.perform(get("/api/v1/admin/benefit-candidates/{id}", candidateId))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode candidate = objectMapper.readTree(result.getResponse().getContentAsByteArray()).get("data");
+        String benefitDetailText = candidate.get("benefitDetailText").asText();
+        String benefitDetailImageSources = candidate.get("benefitDetailImageSources").asText();
+
+        assertThat(benefitDetailText).contains("매점 콤보 구매 시 50% 할인");
+        assertThat(benefitDetailText).doesNotContain("CGV");
+        assertThat(benefitDetailImageSources).contains("imgAlt: CGV");
     }
 
     @Test
@@ -616,6 +724,46 @@ class OfficialSourceCollectionApiTest {
                                 <p>CJ ONE 쿠폰은 현금으로 교환 및 타인에게 양도할 수 없습니다.</p>
                                 <p>생일축하쿠폰은 1년에 1번 지급되며, 한번 발급되면 추가 발급되지 않습니다.</p>
                                 <p>CJ ONE 회원정보에 등록된 생년월일을 기준으로 쿠폰이 발급됩니다.</p>
+                            </section>
+                        </main>
+                    </body>
+                </html>
+                """;
+    }
+
+    private String couponRowImageHtml() {
+        return """
+                <html>
+                    <body>
+                        <main>
+                            <h1>생일 축하 쿠폰</h1>
+                            <section class="coupon-list">
+                                <div class="coupon-row">
+                                    <img src="/images/cgv-logo.png" alt="" />
+                                    <p>[생일축하] 매점 콤보 구매 시 50% 할인</p>
+                                </div>
+                                <div class="coupon-row">
+                                    <img src="/images/vips-logo.png" alt="" />
+                                    <p>[생일축하] 4만원 이상 주문 시 10,000원 할인</p>
+                                </div>
+                            </section>
+                        </main>
+                    </body>
+                </html>
+                """;
+    }
+
+    private String couponRowImageWithAltHtml() {
+        return """
+                <html>
+                    <body>
+                        <main>
+                            <h1>생일 축하 쿠폰</h1>
+                            <section class="coupon-list">
+                                <div class="coupon-row">
+                                    <img src="/images/cgv-logo.png" alt="CGV" title="" />
+                                    <p>[생일축하] 매점 콤보 구매 시 50% 할인</p>
+                                </div>
                             </section>
                         </main>
                     </body>

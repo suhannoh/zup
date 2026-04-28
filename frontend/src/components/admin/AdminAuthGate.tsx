@@ -3,7 +3,6 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { hasAdminAuth } from "@/lib/adminAuth";
-import { AdminLogoutButton } from "@/components/admin/AdminLogoutButton";
 
 export function AdminAuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -26,19 +25,12 @@ export function AdminAuthGate({ children }: { children: React.ReactNode }) {
   }, [isLoginPage, pathname, router]);
 
   if (!checked) {
-    return <div className="text-sm text-neutral-500">관리자 인증 상태를 확인하는 중입니다.</div>;
+    return (
+        <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm font-semibold text-neutral-500">
+          관리자 인증 상태를 확인하는 중입니다.
+        </div>
+    );
   }
 
-  if (isLoginPage) {
-    return children;
-  }
-
-  return (
-    <div className="space-y-5">
-      <div className="flex justify-end">
-        <AdminLogoutButton />
-      </div>
-      {children}
-    </div>
-  );
+  return <>{children}</>;
 }

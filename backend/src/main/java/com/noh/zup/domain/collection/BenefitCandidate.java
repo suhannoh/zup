@@ -76,6 +76,9 @@ public class BenefitCandidate extends BaseTimeEntity {
     private String benefitDetailText;
 
     @Lob
+    private String benefitDetailImageSources;
+
+    @Lob
     private String usageGuideText;
 
     @Column(nullable = false, precision = 3, scale = 2)
@@ -111,6 +114,7 @@ public class BenefitCandidate extends BaseTimeEntity {
             Boolean requiresMembership,
             String evidenceText,
             String benefitDetailText,
+            String benefitDetailImageSources,
             String usageGuideText,
             BigDecimal confidence
     ) {
@@ -127,6 +131,7 @@ public class BenefitCandidate extends BaseTimeEntity {
         this.requiresMembership = requiresMembership;
         this.evidenceText = evidenceText;
         this.benefitDetailText = benefitDetailText;
+        this.benefitDetailImageSources = benefitDetailImageSources;
         this.usageGuideText = usageGuideText;
         this.confidence = confidence;
         this.status = BenefitCandidateStatus.NEEDS_REVIEW;
@@ -160,6 +165,7 @@ public class BenefitCandidate extends BaseTimeEntity {
                 requiresSignup,
                 requiresMembership,
                 evidenceText,
+                null,
                 null,
                 null,
                 confidence
@@ -236,6 +242,10 @@ public class BenefitCandidate extends BaseTimeEntity {
 
     public String getBenefitDetailText() {
         return benefitDetailText;
+    }
+
+    public String getBenefitDetailImageSources() {
+        return benefitDetailImageSources;
     }
 
     public String getUsageGuideText() {

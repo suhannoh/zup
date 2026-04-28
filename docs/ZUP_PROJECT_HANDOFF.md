@@ -53,8 +53,15 @@ Candidate 정제 메모:
 - 메뉴, 네비게이션, 푸터, SNS, 약관성 영역을 제거한 뒤 생일 키워드 주변 근거 문장만 저장한다.
 - `evidenceText`는 최대 3문장, 500자 이내를 목표로 한다.
 - 자동 수집은 생일 혜택 존재 여부뿐 아니라 구체 혜택 목록과 이용안내를 분리해 `benefitDetailText`, `usageGuideText`에 저장한다.
+- 쿠폰 브랜드명이 이미지 로고로 제공되면 `benefitDetailImageSources`에 `img src`, `alt`, `title`을 저장하고 브랜드명은 자동 확정하지 않는다.
+- 이미지 OCR은 사용하지 않고 이미지 파일명만 보고 브랜드명을 추정하지 않는다.
 - 운영자는 `benefitDetailText`와 `usageGuideText`를 검수한 뒤 승인 폼의 `summary`와 `usageCondition`을 정리해 Benefit으로 승인한다.
 - 승인 폼의 `usageCondition` 기본값은 `usageGuideText` 우선, 없으면 `evidenceText` fallback이다.
+- Candidate 승인으로 생성된 Benefit은 `VERIFIED` 상태다. Public 화면에는 `PUBLISHED + isActive=true` 혜택만 노출된다.
+- 공개 전 관리자는 Benefit 상세에서 요약, 이용 조건, 공식 출처를 검수한 뒤 `PUBLISHED`로 전환한다. 공식 출처가 없는 혜택은 공개하지 않는다.
+- Candidate 승인 전 관리자는 혜택 상세 리스트를 편집할 수 있고, 승인 시 `BenefitDetailItem`으로 저장된다.
+- `BenefitDetailItem`은 Public 카드의 대표 혜택 목록으로 사용되며, Public 화면에는 active item만 표시된다.
+- 브랜드명이 이미지 로고로만 제공되는 상세 항목은 자동 확정하지 않고 비워둔 뒤 관리자가 수동 입력한다.
 - 추출 로직 개선 후 기존 스냅샷을 재분석하려면 `/admin/source-watches`에서 `후보 재생성`을 실행한다.
 - 후보 재생성은 최신 `PageSnapshot.extractedText`를 사용하며 외부 URL fetch와 `CollectionRun` 생성을 하지 않는다.
 - 재생성된 후보는 `NEEDS_REVIEW` 상태이고, 기존 후보는 자동 삭제/자동 반려하지 않는다.
@@ -254,3 +261,11 @@ Infra:
 - 자동 크롤링과 자동 게시 추가 금지
 - 브랜드 로고 무단 사용 금지
 - 공식 확인되지 않은 혜택 게시 금지
+## 관리자 UI 정리 메모
+
+- 관리자 화면은 대시보드 중심의 넓은 데스크톱 레이아웃으로 정리했다. 좌측 고정 사이드바, 상단 헤더, `max-width: 1440px` 메인 영역을 사용한다.
+- 사이드바 메뉴는 대시보드, 브랜드 관리, 공식 출처 수집, 혜택 후보 검수, 혜택 관리, 수집 이력, 제보 관리 순서로 구성하며 현재 경로는 파란색 active 상태로 표시한다.
+- 후보 검수 화면은 2컬럼 구조로 정리했다. 좌측에는 수집 출처, 요약, 구체 혜택 추정, 이용안내 추정, 근거 원문, 쿠폰 이미지 소스, 혜택 상세 리스트 편집을 배치하고 우측에는 승인 전 체크와 혜택 승인 폼을 배치한다.
+- 혜택 상세 리스트는 공개 화면에 표시될 대표 혜택 목록이므로 후보 승인 전 반드시 확인한다. 브랜드명이 이미지 로고로만 제공되는 경우 자동 확정하지 않고 운영자가 직접 입력한다.
+- 혜택 관리 상세 화면은 승인된 혜택의 상세 리스트를 수정하고 공식 출처를 확인한 뒤 `PUBLISHED`로 전환하는 흐름을 강조한다.
+- `VERIFIED` 혜택은 관리자 검수 완료 상태이며 사용자 화면에는 노출되지 않는다. Public 화면에는 `PUBLISHED + isActive=true` 혜택만 노출된다.

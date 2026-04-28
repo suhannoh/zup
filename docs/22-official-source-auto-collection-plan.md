@@ -148,10 +148,17 @@ HTML 추출 단계에서는 `script`, `style`, `noscript`, `header`, `footer`, `
 자동 수집은 생일 혜택 존재 여부만 판단하지 않고, 구체 혜택 목록과 이용안내를 분리해 Candidate에 저장한다.
 
 - `benefitDetailText`: 쿠폰별 혜택 추정 목록. 할인, 무료, 증정, 쿠폰, 포인트, 금액, %, 콤보, 세트, 케이크, 샐러드, 타임캡슐, 자물쇠 및 `free`, `discount`, `coupon`, `point`, `gift`, `combo` 키워드가 있는 문장을 최대 10개 저장한다.
+- `benefitDetailImageSources`: 쿠폰 row 주변 로고/이미지의 `img src`, `alt`, `title`을 검수 참고용으로 저장한다. 상대경로 이미지는 SourceWatch URL 기준 절대경로로 변환한다.
 - `usageGuideText`: 이용안내/주의사항 추정 문장. 회원만, 현금 교환, 양도, 발급, 지급, 1년에 1번, 추가 발급, 생년월일, 회원정보, 사용 조건, 최소 구매, 유효기간, 제외 등 조건성 문장을 700자 이내로 저장한다.
 - `summary`는 구체 혜택이 있으면 대표 혜택 3~5개가 드러나도록 생성한다.
 
+브랜드명이 이미지 로고로 제공되는 쿠폰 목록은 자동으로 브랜드명을 단정하지 않는다. 이미지 OCR은 사용하지 않고, 이미지 파일명만 보고 브랜드명을 확정하지 않는다. `alt` 또는 `title`이 명확한 경우에도 검수 참고값으로만 저장하며 최종 브랜드 판단은 운영자가 한다.
+
 운영자는 `benefitDetailText`와 `usageGuideText`를 검수한 뒤 승인 폼의 `summary`와 `usageCondition`을 정리해 Benefit으로 승인한다. Candidate는 자동으로 PUBLISHED 되지 않으며, 승인 없이 Benefit을 생성하지 않는다.
+
+Candidate 승인으로 생성된 Benefit은 `VERIFIED` 상태다. Public 화면에는 `PUBLISHED + isActive=true` 혜택만 노출된다. 공개 전 관리자는 Benefit 상세에서 요약, 이용 조건, 구매 조건, 사용 가능 기간, 공식 출처를 검수한 뒤 `PUBLISHED`로 전환한다. 공식 출처가 없는 혜택은 공개 전환하지 않는다.
+
+Candidate 승인 전 관리자는 `benefitDetailText`를 기반으로 혜택 상세 리스트를 편집할 수 있다. 브랜드명이 이미지 로고로만 제공되는 경우 자동 확정하지 않고 비워두며, 관리자가 수동 입력한다. 승인 요청의 상세 리스트는 `BenefitDetailItem`으로 저장되고, 최종 공개 혜택 카드의 대표 혜택 목록으로 사용된다. Public 화면에는 `PUBLISHED` Benefit의 active detail item만 표시한다.
 
 추출 로직을 개선한 뒤에는 기존 `PageSnapshot`의 `extractedText`를 재분석해 Candidate를 다시 만들 수 있다. `POST /api/v1/admin/source-watches/{id}/regenerate-candidates`는 최신 스냅샷을 사용하며 외부 URL fetch를 수행하지 않는다. 생성된 후보는 `NEEDS_REVIEW` 상태로 검수 대기하고, 기존 후보는 자동 삭제 또는 자동 반려하지 않는다. 품질이 낮은 기존 후보는 운영자가 직접 `REJECTED` 처리한다.
 
@@ -170,3 +177,10 @@ HTML 추출 단계에서는 `script`, `style`, `noscript`, `header`, `footer`, `
 - AI, Gemini, OpenAI 연동
 - Playwright 기반 수집
 - 대규모 스케줄러 구현
+## 관리자 UI 운영 흐름
+
+- 공식 출처 자동 수집 운영은 `/admin` 대시보드에서 전체 수집 URL, 활성 수집 URL, 검수 대기 후보, 최근 성공/실패/스킵 현황을 확인하는 방식으로 정리했다.
+- `/admin/source-watches`에서는 `수집 실행`과 `후보 재생성`을 구분한다. 수집 실행은 공식 URL을 다시 가져오고, 후보 재생성은 저장된 최신 스냅샷을 다시 분석한다.
+- `/admin/benefit-candidates/{id}`에서는 수집 근거, 구체 혜택 추정, 이용안내 추정, 쿠폰 이미지 소스, 혜택 상세 리스트, 승인 폼을 분리해 검수한다.
+- 후보 승인으로 생성된 Benefit은 `VERIFIED` 상태이며 Public 화면에는 노출되지 않는다. 관리자는 `/admin/benefits/{id}`에서 상세 리스트와 공식 출처를 확인한 뒤 `PUBLISHED`로 전환한다.
+- 공개 화면에는 `PUBLISHED + isActive=true` Benefit과 active detail item만 표시한다. Candidate는 Public API에 노출하지 않는다.

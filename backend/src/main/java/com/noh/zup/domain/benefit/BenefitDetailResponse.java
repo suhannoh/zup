@@ -32,12 +32,14 @@ public record BenefitDetailResponse(
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         List<BenefitTagResponse> tags,
-        List<BenefitSourceResponse> sources
+        List<BenefitSourceResponse> sources,
+        List<BenefitDetailItemResponse> detailItems
 ) {
     public static BenefitDetailResponse of(
             Benefit benefit,
             List<BenefitTagResponse> tags,
-            List<BenefitSourceResponse> sources
+            List<BenefitSourceResponse> sources,
+            List<BenefitDetailItemResponse> detailItems
     ) {
         return new BenefitDetailResponse(
                 benefit.getId(),
@@ -67,7 +69,8 @@ public record BenefitDetailResponse(
                 benefit.getCreatedAt(),
                 benefit.getUpdatedAt(),
                 tags,
-                sources
+                sources,
+                detailItems
         );
     }
 }

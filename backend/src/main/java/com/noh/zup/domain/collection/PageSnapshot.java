@@ -32,6 +32,9 @@ public class PageSnapshot extends BaseTimeEntity {
     @Column(nullable = false)
     private String extractedText;
 
+    @Lob
+    private String benefitDetailImageSources;
+
     @Column(nullable = false)
     private Boolean sameAsPrevious;
 
@@ -42,9 +45,20 @@ public class PageSnapshot extends BaseTimeEntity {
     }
 
     public PageSnapshot(SourceWatch sourceWatch, String contentHash, String extractedText, Boolean sameAsPrevious) {
+        this(sourceWatch, contentHash, extractedText, null, sameAsPrevious);
+    }
+
+    public PageSnapshot(
+            SourceWatch sourceWatch,
+            String contentHash,
+            String extractedText,
+            String benefitDetailImageSources,
+            Boolean sameAsPrevious
+    ) {
         this.sourceWatch = sourceWatch;
         this.contentHash = contentHash;
         this.extractedText = extractedText;
+        this.benefitDetailImageSources = benefitDetailImageSources;
         this.sameAsPrevious = sameAsPrevious;
         this.fetchedAt = LocalDateTime.now();
     }
@@ -63,6 +77,10 @@ public class PageSnapshot extends BaseTimeEntity {
 
     public String getExtractedText() {
         return extractedText;
+    }
+
+    public String getBenefitDetailImageSources() {
+        return benefitDetailImageSources;
     }
 
     public Boolean getSameAsPrevious() {

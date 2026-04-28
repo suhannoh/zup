@@ -6,6 +6,8 @@ import type { AdminLoginRequest, AdminLoginResponse } from "@/types/adminAuth";
 import type {
   AdminBenefit,
   AdminBenefitCreateRequest,
+  AdminBenefitDetailItem,
+  AdminBenefitDetailItemRequest,
   AdminBenefitSearchParams,
   AdminBenefitUpdateRequest,
   VerificationStatus,
@@ -191,6 +193,43 @@ export async function updateAdminBenefitActive(benefitId: number, request: { isA
 export async function getAdminBenefitSources(benefitId: number) {
   const response = await adminApiClient.get<ApiResponse<AdminBenefitSource[]>>(
     `/api/v1/admin/benefits/${benefitId}/sources`
+  );
+  return response.data.data;
+}
+
+export async function getAdminBenefitDetailItems(benefitId: number) {
+  const response = await adminApiClient.get<ApiResponse<AdminBenefitDetailItem[]>>(
+    `/api/v1/admin/benefits/${benefitId}/detail-items`
+  );
+  return response.data.data;
+}
+
+export async function createAdminBenefitDetailItem(
+  benefitId: number,
+  request: AdminBenefitDetailItemRequest
+) {
+  const response = await adminApiClient.post<ApiResponse<AdminBenefitDetailItem>>(
+    `/api/v1/admin/benefits/${benefitId}/detail-items`,
+    request
+  );
+  return response.data.data;
+}
+
+export async function updateAdminBenefitDetailItem(
+  itemId: number,
+  request: AdminBenefitDetailItemRequest
+) {
+  const response = await adminApiClient.patch<ApiResponse<AdminBenefitDetailItem>>(
+    `/api/v1/admin/benefit-detail-items/${itemId}`,
+    request
+  );
+  return response.data.data;
+}
+
+export async function updateAdminBenefitDetailItemActive(itemId: number, request: { isActive: boolean }) {
+  const response = await adminApiClient.patch<ApiResponse<AdminBenefitDetailItem>>(
+    `/api/v1/admin/benefit-detail-items/${itemId}/active`,
+    request
   );
   return response.data.data;
 }

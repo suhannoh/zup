@@ -28,6 +28,7 @@ public class AdminBenefitService {
     private final BenefitRepository benefitRepository;
     private final BenefitTagRepository benefitTagRepository;
     private final BenefitSourceRepository benefitSourceRepository;
+    private final BenefitDetailItemRepository benefitDetailItemRepository;
     private final BrandRepository brandRepository;
     private final CategoryRepository categoryRepository;
     private final TagRepository tagRepository;
@@ -39,6 +40,7 @@ public class AdminBenefitService {
             BenefitRepository benefitRepository,
             BenefitTagRepository benefitTagRepository,
             BenefitSourceRepository benefitSourceRepository,
+            BenefitDetailItemRepository benefitDetailItemRepository,
             BrandRepository brandRepository,
             CategoryRepository categoryRepository,
             TagRepository tagRepository,
@@ -49,6 +51,7 @@ public class AdminBenefitService {
         this.benefitRepository = benefitRepository;
         this.benefitTagRepository = benefitTagRepository;
         this.benefitSourceRepository = benefitSourceRepository;
+        this.benefitDetailItemRepository = benefitDetailItemRepository;
         this.brandRepository = brandRepository;
         this.categoryRepository = categoryRepository;
         this.tagRepository = tagRepository;
@@ -257,6 +260,9 @@ public class AdminBenefitService {
                         .toList(),
                 benefitSourceRepository.findAllByBenefitId(benefit.getId()).stream()
                         .map(BenefitSourceResponse::from)
+                        .toList(),
+                benefitDetailItemRepository.findAllByBenefitIdOrderByDisplayOrderAscIdAsc(benefit.getId()).stream()
+                        .map(BenefitDetailItemResponse::from)
                         .toList()
         );
     }

@@ -106,6 +106,7 @@ public class BenefitCandidateDetector {
                 lowerText.contains("멤버십") || lowerText.contains("회원") || lowerText.contains("membership"),
                 evidenceText,
                 benefitDetailText,
+                snapshot.getBenefitDetailImageSources(),
                 usageGuideText,
                 calculateConfidence(sourceWatch, lowerText)
         );
@@ -156,6 +157,7 @@ public class BenefitCandidateDetector {
                 .map(String::trim)
                 .filter(this::isNotMenuNoise)
                 .filter(this::isBenefitDetailSentence)
+                .map(this::cleanCouponPrefix)
                 .sorted((left, right) -> Integer.compare(benefitPriority(right), benefitPriority(left)))
                 .distinct()
                 .limit(MAX_BENEFIT_DETAIL_COUNT)
@@ -341,7 +343,7 @@ public class BenefitCandidateDetector {
             if (benefitDetails.stream().anyMatch(detail -> detail.contains("CGV") || detail.contains("VIPS") || detail.contains("계절밥상") || detail.contains("더플레이스"))) {
                 return truncate(brandName + " 회원에게 매년 1회 " + detailSummary + " 등 제휴 브랜드 생일축하 쿠폰을 제공하는 멤버십 혜택입니다.", MAX_SUMMARY_LENGTH);
             }
-            return truncate(brandName + " 회원에게 " + detailSummary + " 등 생일 혜택을 제공하는 공식 출처 기반 후보입니다.", MAX_SUMMARY_LENGTH);
+            return truncate(brandName + " 회원에게 매년 1회 여러 제휴 브랜드에서 사용할 수 있는 생일축하 쿠폰을 제공하는 멤버십 혜택입니다. 대표 혜택: " + detailSummary, MAX_SUMMARY_LENGTH);
         }
         List<String> sentences = splitSentences(evidenceText);
         for (String sentence : sentences) {
@@ -361,6 +363,10 @@ public class BenefitCandidateDetector {
             return null;
         }
         return String.join("\n", values);
+    }
+
+    private String cleanCouponPrefix(String text) {
+        return text == null ? "" : text.replaceAll("^\\[[^]]*]\\s*", "").trim();
     }
 
     private BigDecimal calculateConfidence(SourceWatch sourceWatch, String lowerText) {

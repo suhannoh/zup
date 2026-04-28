@@ -5,7 +5,7 @@ export const SOURCE_TYPE_LABELS: Record<SourceType, string> = {
   OFFICIAL_APP: "공식 앱",
   OFFICIAL_MEMBERSHIP: "공식 멤버십",
   OFFICIAL_FAQ: "공식 FAQ",
-  OFFICIAL_NOTICE: "공식 공지사항",
+  OFFICIAL_NOTICE: "공식 공지",
   OFFICIAL_SNS: "공식 SNS",
   CUSTOMER_CENTER: "고객센터",
   BLOG_REFERENCE: "블로그 참고",

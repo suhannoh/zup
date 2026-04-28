@@ -3,6 +3,8 @@ package com.noh.zup.domain.collection;
 import com.noh.zup.common.exception.BusinessException;
 import com.noh.zup.common.exception.ErrorCode;
 import com.noh.zup.domain.benefit.Benefit;
+import com.noh.zup.domain.benefit.BenefitDetailItem;
+import com.noh.zup.domain.benefit.BenefitDetailItemRepository;
 import com.noh.zup.domain.benefit.BenefitRepository;
 import com.noh.zup.domain.benefit.BenefitType;
 import com.noh.zup.domain.benefit.BirthdayTimingType;
@@ -24,17 +26,20 @@ public class BenefitCandidateService {
 
     private final BenefitCandidateRepository benefitCandidateRepository;
     private final BenefitRepository benefitRepository;
+    private final BenefitDetailItemRepository benefitDetailItemRepository;
     private final BenefitSourceRepository benefitSourceRepository;
     private final VerificationLogRepository verificationLogRepository;
 
     public BenefitCandidateService(
             BenefitCandidateRepository benefitCandidateRepository,
             BenefitRepository benefitRepository,
+            BenefitDetailItemRepository benefitDetailItemRepository,
             BenefitSourceRepository benefitSourceRepository,
             VerificationLogRepository verificationLogRepository
     ) {
         this.benefitCandidateRepository = benefitCandidateRepository;
         this.benefitRepository = benefitRepository;
+        this.benefitDetailItemRepository = benefitDetailItemRepository;
         this.benefitSourceRepository = benefitSourceRepository;
         this.verificationLogRepository = verificationLogRepository;
     }
@@ -101,6 +106,7 @@ public class BenefitCandidateService {
                 true
         );
         Benefit savedBenefit = benefitRepository.save(benefit);
+        saveDetailItems(savedBenefit, request.detailItems());
 
         SourceWatch sourceWatch = candidate.getSourceWatch();
         BenefitSource source = new BenefitSource(savedBenefit, sourceWatch.getSourceType(), sourceWatch.getUrl());
@@ -129,6 +135,30 @@ public class BenefitCandidateService {
                 verificationStatus,
                 "benefit created from candidate"
         );
+    }
+
+    private void saveDetailItems(Benefit benefit, List<BenefitDetailItemApproveRequest> detailItems) {
+        if (detailItems == null || detailItems.isEmpty()) {
+            return;
+        }
+        int fallbackOrder = 1;
+        for (BenefitDetailItemApproveRequest item : detailItems) {
+            if (!StringUtils.hasText(item.title())) {
+                fallbackOrder++;
+                continue;
+            }
+            Integer displayOrder = item.displayOrder() == null ? fallbackOrder : item.displayOrder();
+            benefitDetailItemRepository.save(new BenefitDetailItem(
+                    benefit,
+                    normalize(item.brandName()),
+                    item.title().trim(),
+                    normalize(item.description()),
+                    normalize(item.conditionText()),
+                    normalize(item.imageUrl()),
+                    displayOrder
+            ));
+            fallbackOrder++;
+        }
     }
 
     private BenefitCandidate getCandidateEntity(Long id) {
@@ -169,6 +199,13 @@ public class BenefitCandidateService {
             return primary.trim();
         }
         return StringUtils.hasText(fallback) ? fallback.trim() : null;
+    }
+
+    private String normalize(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return value.trim();
     }
 
     private <T> T firstValue(T primary, T fallback, T defaultValue) {

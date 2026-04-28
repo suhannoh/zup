@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/layout/Footer";
 import { Header } from "@/components/layout/Header";
+import { AppChrome } from "@/components/layout/AppChrome";
 import { DEFAULT_DESCRIPTION, DEFAULT_KEYWORDS, DEFAULT_TITLE, SITE_URL } from "@/lib/seo";
 import "./globals.css";
 
@@ -35,11 +36,9 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body>
-        <Header />
-        <main className="mx-auto min-h-[calc(100vh-240px)] max-w-6xl px-5 py-10 md:px-12">
+      <AppChrome>
           {children}
-        </main>
-        <Footer />
+      </AppChrome>
       </body>
     </html>
   );

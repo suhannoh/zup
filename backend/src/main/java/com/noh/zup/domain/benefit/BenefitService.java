@@ -17,6 +17,7 @@ public class BenefitService {
     private final BenefitRepository benefitRepository;
     private final BenefitTagRepository benefitTagRepository;
     private final BenefitSourceRepository benefitSourceRepository;
+    private final BenefitDetailItemRepository benefitDetailItemRepository;
     private final BrandRepository brandRepository;
     private final CategoryRepository categoryRepository;
     private final TagRepository tagRepository;
@@ -25,6 +26,7 @@ public class BenefitService {
             BenefitRepository benefitRepository,
             BenefitTagRepository benefitTagRepository,
             BenefitSourceRepository benefitSourceRepository,
+            BenefitDetailItemRepository benefitDetailItemRepository,
             BrandRepository brandRepository,
             CategoryRepository categoryRepository,
             TagRepository tagRepository
@@ -32,6 +34,7 @@ public class BenefitService {
         this.benefitRepository = benefitRepository;
         this.benefitTagRepository = benefitTagRepository;
         this.benefitSourceRepository = benefitSourceRepository;
+        this.benefitDetailItemRepository = benefitDetailItemRepository;
         this.brandRepository = brandRepository;
         this.categoryRepository = categoryRepository;
         this.tagRepository = tagRepository;
@@ -91,11 +94,11 @@ public class BenefitService {
                 .findByIdAndIsActiveTrueAndVerificationStatus(id, VerificationStatus.PUBLISHED)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Benefit not found"));
 
-        return BenefitDetailResponse.of(benefit, getTags(benefit), getSources(benefit));
+        return BenefitDetailResponse.of(benefit, getTags(benefit), getSources(benefit), getActiveDetailItems(benefit));
     }
 
     private BenefitListResponse toListResponse(Benefit benefit) {
-        return BenefitListResponse.of(benefit, getTags(benefit), getSources(benefit));
+        return BenefitListResponse.of(benefit, getTags(benefit), getSources(benefit), getActiveDetailItems(benefit));
     }
 
     private List<BenefitTagResponse> getTags(Benefit benefit) {
@@ -108,6 +111,12 @@ public class BenefitService {
     private List<BenefitSourceResponse> getSources(Benefit benefit) {
         return benefitSourceRepository.findAllByBenefitIdAndIsActiveTrue(benefit.getId()).stream()
                 .map(BenefitSourceResponse::from)
+                .toList();
+    }
+
+    private List<BenefitDetailItemResponse> getActiveDetailItems(Benefit benefit) {
+        return benefitDetailItemRepository.findAllByBenefitIdAndIsActiveTrueOrderByDisplayOrderAscIdAsc(benefit.getId()).stream()
+                .map(BenefitDetailItemResponse::from)
                 .toList();
     }
 
