@@ -66,6 +66,7 @@ http://localhost:3000
 - 공식 출처와 최근 확인일 표시
 - 사용자 정보 수정 제보
 - 관리자 브랜드/혜택/출처/태그/검수 이력 관리
+- 관리자 JWT 인증 및 Admin API 보호
 - SEO sitemap, robots, metadata
 
 ## 운영 데이터 입력 순서
@@ -87,6 +88,25 @@ http://localhost:3000
 - [초기 브랜드 수집 스프레드시트 템플릿](docs/16-initial-brand-collection-template.md)
 - [관리자 운영 시나리오](docs/17-admin-operation-scenario.md)
 
+## MVP E2E 점검
+
+로컬에서 백엔드와 프론트를 실행한 뒤 아래 문서에 따라 전체 흐름을 확인할 수 있습니다.
+
+- [MVP E2E 체크리스트](docs/18-mvp-e2e-checklist.md)
+- [로컬 Smoke Test 가이드](docs/19-local-smoke-test-guide.md)
+
+PowerShell smoke test:
+
+```powershell
+.\scripts\smoke-test-local.ps1
+```
+
+백엔드 포트가 다르면 `-BaseUrl`로 지정합니다.
+
+```powershell
+.\scripts\smoke-test-local.ps1 -BaseUrl "http://localhost:18081"
+```
+
 ## MVP 범위
 
 - 브랜드/혜택 데이터 관리
@@ -94,12 +114,14 @@ http://localhost:3000
 - 카테고리/태그 페이지
 - 사용자 제보 접수
 - 관리자 CRUD
+- 관리자 인증
 - 검수 상태와 VerificationLog
 - sitemap/robots/metadata
+- 로컬 E2E smoke test
 
 ## 하지 않는 것
 
-- 사용자 회원가입/로그인
+- 일반 사용자 회원가입/로그인
 - 사용자 생일 입력 기반 개인화
 - AI 추천
 - WebSocket
