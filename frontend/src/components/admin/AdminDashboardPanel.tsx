@@ -97,7 +97,7 @@ export function AdminDashboardPanel() {
 
       <section className="rounded-lg border border-border bg-white p-5">
         <h2 className="text-lg font-semibold">관리자 메뉴</h2>
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
           <Link className="rounded-lg border border-border p-4 text-sm font-semibold hover:border-accent" href="/admin/reports">
             제보 관리
           </Link>
@@ -106,6 +106,18 @@ export function AdminDashboardPanel() {
           </Link>
           <Link className="rounded-lg border border-border p-4 text-sm font-semibold hover:border-accent" href="/admin/benefits">
             혜택 관리
+          </Link>
+          <Link className="rounded-lg border border-border p-4 text-sm font-semibold hover:border-accent" href="/admin/source-watches">
+            공식 출처 수집 관리
+          </Link>
+          <Link className="rounded-lg border border-border p-4 text-sm font-semibold hover:border-accent" href="/admin/benefit-candidates">
+            혜택 후보 검수
+          </Link>
+          <Link className="rounded-lg border border-border p-4 text-sm font-semibold hover:border-accent" href="/admin/collection-runs">
+            수집 실행 이력
+            <span className="mt-2 block text-xs font-normal text-neutral-500">
+              공식 출처 수집의 성공/실패/스킵 기록
+            </span>
           </Link>
         </div>
       </section>

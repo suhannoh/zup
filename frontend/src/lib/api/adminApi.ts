@@ -23,6 +23,19 @@ import type {
 } from "@/types/adminBrand";
 import type { AdminDashboard, AdminReport, ReportStatus, ReportType } from "@/types/report";
 import type { VerificationLog } from "@/types/verificationLog";
+import type {
+  SourceWatch,
+  SourceWatchCollectResponse,
+  SourceWatchCreateRequest,
+  SourceWatchUpdateRequest,
+} from "@/types/sourceWatch";
+import type {
+  BenefitCandidate,
+  BenefitCandidateApproveRequest,
+  BenefitCandidateApproveResponse,
+  BenefitCandidateStatus,
+} from "@/types/benefitCandidate";
+import type { CollectionRun } from "@/types/collectionRun";
 
 type AdminReportParams = {
   status?: ReportStatus;
@@ -236,6 +249,87 @@ export async function getRecentVerificationLogs(limit = 20) {
   const response = await adminApiClient.get<ApiResponse<VerificationLog[]>>(
     "/api/v1/admin/verification-logs/recent",
     { params: compactParams({ limit }) }
+  );
+  return response.data.data;
+}
+
+export async function getSourceWatches() {
+  const response = await adminApiClient.get<ApiResponse<SourceWatch[]>>("/api/v1/admin/source-watches");
+  return response.data.data;
+}
+
+export async function createSourceWatch(request: SourceWatchCreateRequest) {
+  const response = await adminApiClient.post<ApiResponse<SourceWatch>>("/api/v1/admin/source-watches", request);
+  return response.data.data;
+}
+
+export async function updateSourceWatch(sourceWatchId: number, request: SourceWatchUpdateRequest) {
+  const response = await adminApiClient.patch<ApiResponse<SourceWatch>>(
+    `/api/v1/admin/source-watches/${sourceWatchId}`,
+    request
+  );
+  return response.data.data;
+}
+
+export async function updateSourceWatchActive(sourceWatchId: number, request: { isActive: boolean }) {
+  const response = await adminApiClient.patch<ApiResponse<SourceWatch>>(
+    `/api/v1/admin/source-watches/${sourceWatchId}/active`,
+    request
+  );
+  return response.data.data;
+}
+
+export async function collectSourceWatch(sourceWatchId: number) {
+  const response = await adminApiClient.post<ApiResponse<SourceWatchCollectResponse>>(
+    `/api/v1/admin/source-watches/${sourceWatchId}/collect`,
+    undefined,
+    { timeout: 15000 }
+  );
+  return response.data.data;
+}
+
+export async function getBenefitCandidates() {
+  const response = await adminApiClient.get<ApiResponse<BenefitCandidate[]>>("/api/v1/admin/benefit-candidates");
+  return response.data.data;
+}
+
+export async function getBenefitCandidate(candidateId: number) {
+  const response = await adminApiClient.get<ApiResponse<BenefitCandidate>>(
+    `/api/v1/admin/benefit-candidates/${candidateId}`
+  );
+  return response.data.data;
+}
+
+export async function updateBenefitCandidateStatus(
+  candidateId: number,
+  request: { status: Exclude<BenefitCandidateStatus, "APPROVED" | "DETECTED">; reviewMemo?: string | null }
+) {
+  const response = await adminApiClient.patch<ApiResponse<BenefitCandidate>>(
+    `/api/v1/admin/benefit-candidates/${candidateId}/status`,
+    request
+  );
+  return response.data.data;
+}
+
+export async function approveBenefitCandidate(
+  candidateId: number,
+  request: BenefitCandidateApproveRequest
+) {
+  const response = await adminApiClient.post<ApiResponse<BenefitCandidateApproveResponse>>(
+    `/api/v1/admin/benefit-candidates/${candidateId}/approve`,
+    request
+  );
+  return response.data.data;
+}
+
+export async function getCollectionRuns() {
+  const response = await adminApiClient.get<ApiResponse<CollectionRun[]>>("/api/v1/admin/collection-runs");
+  return response.data.data;
+}
+
+export async function getSourceWatchCollectionRuns(sourceWatchId: number) {
+  const response = await adminApiClient.get<ApiResponse<CollectionRun[]>>(
+    `/api/v1/admin/source-watches/${sourceWatchId}/collection-runs`
   );
   return response.data.data;
 }

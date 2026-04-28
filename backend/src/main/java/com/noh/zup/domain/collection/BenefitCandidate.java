@@ -4,6 +4,7 @@ import com.noh.zup.common.entity.BaseTimeEntity;
 import com.noh.zup.domain.benefit.BenefitType;
 import com.noh.zup.domain.benefit.BirthdayTimingType;
 import com.noh.zup.domain.benefit.OccasionType;
+import com.noh.zup.domain.benefit.Benefit;
 import com.noh.zup.domain.brand.Brand;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -18,6 +19,7 @@ import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "benefit_candidates")
@@ -80,6 +82,12 @@ public class BenefitCandidate extends BaseTimeEntity {
     @Lob
     private String reviewMemo;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "approved_benefit_id")
+    private Benefit approvedBenefit;
+
+    private LocalDateTime approvedAt;
+
     protected BenefitCandidate() {
     }
 
@@ -116,6 +124,15 @@ public class BenefitCandidate extends BaseTimeEntity {
 
     public void updateStatus(BenefitCandidateStatus status, String reviewMemo) {
         this.status = status;
+        if (reviewMemo != null) {
+            this.reviewMemo = reviewMemo;
+        }
+    }
+
+    public void approve(Benefit approvedBenefit, String reviewMemo) {
+        this.status = BenefitCandidateStatus.APPROVED;
+        this.approvedBenefit = approvedBenefit;
+        this.approvedAt = LocalDateTime.now();
         if (reviewMemo != null) {
             this.reviewMemo = reviewMemo;
         }
@@ -183,5 +200,13 @@ public class BenefitCandidate extends BaseTimeEntity {
 
     public String getReviewMemo() {
         return reviewMemo;
+    }
+
+    public Benefit getApprovedBenefit() {
+        return approvedBenefit;
+    }
+
+    public LocalDateTime getApprovedAt() {
+        return approvedAt;
     }
 }

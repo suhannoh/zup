@@ -1,5 +1,48 @@
 # ZUP_PROJECT_HANDOFF
 
+## 2026-04 공식 출처 자동 수집 handoff
+
+완료:
+
+- 공식 출처 자동 수집 Backend API
+- SourceWatch 수동 collect
+- PageSnapshot 저장
+- BenefitCandidate 생성
+- Candidate 승인 시 Benefit, BenefitSource, VerificationLog 생성
+- 공식 출처 자동 수집 관리자 화면 연결
+- 로컬 fixture HTML 및 E2E smoke guide 추가
+- 공식 출처 자동 수집 스케줄러 1차 구현
+- CollectionRun 수집 실행 이력 및 관리자 모니터링 화면
+
+다음 검증:
+
+- 로컬 fixture 기반 자동 수집 E2E 확인
+- Candidate 승인 후 Benefit 생성 확인
+- VERIFIED 상태 Benefit이 Public 화면에 바로 노출되지 않는지 확인
+- 운영 전 robots.txt, 사이트 이용 조건, 요청 빈도 정책 확인
+- CollectionRun의 failureReason/errorMessage와 SourceWatch의 nextFetchAt/failureCount를 함께 확인
+
+관련 문서:
+
+- `docs/22-official-source-auto-collection-plan.md`
+- `docs/24-official-source-collection-e2e-guide.md`
+- `scripts/smoke-test-collection-local.ps1`
+
+스케줄러 메모:
+
+- 기본값은 `COLLECTION_SCHEDULER_ENABLED=false`
+- `COLLECTION_SCHEDULER_ENABLED=true`일 때만 동작
+- `nextFetchAt is null` 또는 `nextFetchAt <= now`인 active SourceWatch만 batch 처리
+- Redis lock key: `collection:source-watch:lock:{sourceWatchId}`
+- 성공 시 다음 수집은 기본 1440분 뒤, 실패 시 기본 180분 뒤
+
+CollectionRun 메모:
+
+- `/admin/collection-runs`에서 최근 50개 실행 이력 확인
+- 수동 수집은 `MANUAL`, 스케줄러 수집은 `SCHEDULED`
+- `sameAsPrevious=true`는 정상 성공
+- 실패 원인은 `failureReason`과 `errorMessage`로 확인
+
 ## 프로젝트명
 
 Zup

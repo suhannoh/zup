@@ -13,6 +13,7 @@ import com.noh.zup.domain.source.SourceType;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ public class SourceWatchService {
     private final SourceWatchRepository sourceWatchRepository;
     private final PageSnapshotRepository pageSnapshotRepository;
     private final BrandRepository brandRepository;
+    private final CollectionRunRepository collectionRunRepository;
     private final OfficialSourceFetcher officialSourceFetcher;
     private final HtmlTextExtractor htmlTextExtractor;
     private final BenefitCandidateDetector benefitCandidateDetector;
@@ -32,6 +34,7 @@ public class SourceWatchService {
             SourceWatchRepository sourceWatchRepository,
             PageSnapshotRepository pageSnapshotRepository,
             BrandRepository brandRepository,
+            CollectionRunRepository collectionRunRepository,
             OfficialSourceFetcher officialSourceFetcher,
             HtmlTextExtractor htmlTextExtractor,
             BenefitCandidateDetector benefitCandidateDetector
@@ -39,6 +42,7 @@ public class SourceWatchService {
         this.sourceWatchRepository = sourceWatchRepository;
         this.pageSnapshotRepository = pageSnapshotRepository;
         this.brandRepository = brandRepository;
+        this.collectionRunRepository = collectionRunRepository;
         this.officialSourceFetcher = officialSourceFetcher;
         this.htmlTextExtractor = htmlTextExtractor;
         this.benefitCandidateDetector = benefitCandidateDetector;
@@ -85,40 +89,71 @@ public class SourceWatchService {
 
     @Transactional
     public SourceWatchCollectResponse collect(Long id) {
+        return collect(id, CollectionTriggerType.MANUAL);
+    }
+
+    @Transactional
+    public SourceWatchCollectResponse collect(Long id, CollectionTriggerType triggerType) {
         SourceWatch sourceWatch = getSourceWatch(id);
+        CollectionRun collectionRun = collectionRunRepository.save(new CollectionRun(sourceWatch, triggerType));
         if (!Boolean.TRUE.equals(sourceWatch.getIsActive())) {
             sourceWatch.markSkipped();
+            collectionRun.completeSkipped("SOURCE_WATCH_INACTIVE", "source watch is inactive");
             return new SourceWatchCollectResponse(id, false, false, 0, "source watch is inactive");
         }
 
-        FetchResult fetchResult = officialSourceFetcher.fetch(sourceWatch.getUrl());
-        if (!fetchResult.success()) {
+        try {
+            FetchResult fetchResult = officialSourceFetcher.fetch(sourceWatch.getUrl());
+            if (!fetchResult.success()) {
+                sourceWatch.markFailed();
+                collectionRun.completeFailed(false, "FETCH_FAILED", fetchResult.failureReason());
+                return new SourceWatchCollectResponse(id, false, false, 0, fetchResult.failureReason());
+            }
+
+            ExtractedText extractedText = htmlTextExtractor.extract(fetchResult.html());
+            if (!extractedText.success()) {
+                sourceWatch.markFailed();
+                collectionRun.completeFailed(true, "EXTRACT_FAILED", extractedText.failureReason());
+                return new SourceWatchCollectResponse(id, true, false, 0, extractedText.failureReason());
+            }
+
+            String contentHash = sha256(extractedText.text());
+            boolean sameAsPrevious = contentHash.equals(sourceWatch.getLastContentHash());
+            PageSnapshot snapshot = pageSnapshotRepository.save(new PageSnapshot(
+                    sourceWatch,
+                    contentHash,
+                    extractedText.text(),
+                    sameAsPrevious
+            ));
+
+            int candidateCount = 0;
+            if (!sameAsPrevious) {
+                candidateCount = benefitCandidateDetector.detect(sourceWatch, snapshot).size();
+            }
+
+            sourceWatch.markSuccess(contentHash);
+            collectionRun.completeSuccess(true, sameAsPrevious, candidateCount);
+            return new SourceWatchCollectResponse(id, true, sameAsPrevious, candidateCount, "collection completed");
+        } catch (RuntimeException exception) {
             sourceWatch.markFailed();
-            return new SourceWatchCollectResponse(id, false, false, 0, fetchResult.failureReason());
+            collectionRun.completeFailed(false, "UNKNOWN", exception.getMessage());
+            return new SourceWatchCollectResponse(id, false, false, 0, exception.getMessage());
         }
+    }
 
-        ExtractedText extractedText = htmlTextExtractor.extract(fetchResult.html());
-        if (!extractedText.success()) {
-            sourceWatch.markFailed();
-            return new SourceWatchCollectResponse(id, true, false, 0, extractedText.failureReason());
-        }
+    @Transactional
+    public SourceWatchResponse updateNextFetchAt(Long id, LocalDateTime nextFetchAt) {
+        SourceWatch sourceWatch = getSourceWatch(id);
+        sourceWatch.updateNextFetchAt(nextFetchAt);
+        return SourceWatchResponse.from(sourceWatch);
+    }
 
-        String contentHash = sha256(extractedText.text());
-        boolean sameAsPrevious = contentHash.equals(sourceWatch.getLastContentHash());
-        PageSnapshot snapshot = pageSnapshotRepository.save(new PageSnapshot(
-                sourceWatch,
-                contentHash,
-                extractedText.text(),
-                sameAsPrevious
-        ));
-
-        int candidateCount = 0;
-        if (!sameAsPrevious) {
-            candidateCount = benefitCandidateDetector.detect(sourceWatch, snapshot).size();
-        }
-
-        sourceWatch.markSuccess(contentHash);
-        return new SourceWatchCollectResponse(id, true, sameAsPrevious, candidateCount, "collection completed");
+    @Transactional
+    public SourceWatchResponse markFailedAndUpdateNextFetchAt(Long id, LocalDateTime nextFetchAt) {
+        SourceWatch sourceWatch = getSourceWatch(id);
+        sourceWatch.markFailed();
+        sourceWatch.updateNextFetchAt(nextFetchAt);
+        return SourceWatchResponse.from(sourceWatch);
     }
 
     private SourceWatch getSourceWatch(Long id) {

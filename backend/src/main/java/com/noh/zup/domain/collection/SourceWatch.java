@@ -104,6 +104,10 @@ public class SourceWatch extends BaseTimeEntity {
         this.failureCount = this.failureCount + 1;
     }
 
+    public void updateNextFetchAt(LocalDateTime nextFetchAt) {
+        this.nextFetchAt = nextFetchAt;
+    }
+
     public Long getId() {
         return id;
     }

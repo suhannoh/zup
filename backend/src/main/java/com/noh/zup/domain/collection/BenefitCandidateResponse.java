@@ -24,6 +24,8 @@ public record BenefitCandidateResponse(
         BigDecimal confidence,
         BenefitCandidateStatus status,
         String reviewMemo,
+        Long approvedBenefitId,
+        LocalDateTime approvedAt,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
@@ -46,6 +48,8 @@ public record BenefitCandidateResponse(
                 candidate.getConfidence(),
                 candidate.getStatus(),
                 candidate.getReviewMemo(),
+                candidate.getApprovedBenefit() == null ? null : candidate.getApprovedBenefit().getId(),
+                candidate.getApprovedAt(),
                 candidate.getCreatedAt(),
                 candidate.getUpdatedAt()
         );

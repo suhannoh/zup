@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -36,5 +37,13 @@ public class AdminBenefitCandidateController {
             @Valid @RequestBody BenefitCandidateStatusUpdateRequest request
     ) {
         return ApiResponse.success(benefitCandidateService.updateStatus(id, request), "benefit candidate status updated");
+    }
+
+    @PostMapping("/{id}/approve")
+    public ApiResponse<BenefitCandidateApproveResponse> approve(
+            @PathVariable Long id,
+            @RequestBody BenefitCandidateApproveRequest request
+    ) {
+        return ApiResponse.success(benefitCandidateService.approve(id, request), "benefit candidate approved");
     }
 }

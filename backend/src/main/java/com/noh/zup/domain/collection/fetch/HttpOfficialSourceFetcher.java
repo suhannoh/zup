@@ -20,12 +20,14 @@ public class HttpOfficialSourceFetcher implements OfficialSourceFetcher {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(TIMEOUT)
                 .followRedirects(HttpClient.Redirect.NORMAL)
+                .version(HttpClient.Version.HTTP_1_1)
                 .build();
     }
 
     @Override
     public FetchResult fetch(String url) {
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                .version(HttpClient.Version.HTTP_1_1)
                 .timeout(TIMEOUT)
                 .header("User-Agent", USER_AGENT)
                 .GET()

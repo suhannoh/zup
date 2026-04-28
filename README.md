@@ -1,5 +1,21 @@
 # Zup
 
+## 공식 출처 자동 수집 E2E 검증
+
+공식 출처 자동 수집 기능은 외부 사이트에 바로 요청하기 전에 로컬 fixture HTML로 검증할 수 있습니다.
+
+자세한 절차는 [공식 출처 자동 수집 로컬 E2E 검증 가이드](docs/24-official-source-collection-e2e-guide.md)를 참고하세요.
+
+PowerShell smoke test:
+
+```powershell
+.\scripts\smoke-test-collection-local.ps1
+```
+
+자동 수집 스케줄러는 기본 비활성화되어 있습니다. 운영자가 `COLLECTION_SCHEDULER_ENABLED=true`를 명시한 경우에만 `nextFetchAt` 기준 due SourceWatch를 Redis lock으로 중복 방지하며 수집합니다. 외부 사이트 대상 운영 전에는 robots.txt와 이용 조건, 요청 빈도 정책을 확인해야 합니다.
+
+수집 실행 결과는 관리자 화면 `/admin/collection-runs`에서 확인할 수 있습니다. 수동 수집과 스케줄러 수집을 구분하며, `sameAsPrevious=true`는 실패가 아닌 정상 성공으로 기록됩니다.
+
 몰라서 못 받던 혜택, 오늘 줍자.
 
 Zup은 브랜드별 생일 혜택을 공식 출처 기준으로 정리하고, 사용자가 앱 필요 여부, 멤버십 조건, 사용 가능 기간, 무료/할인 여부를 빠르게 확인할 수 있게 돕는 검색 유입형 정보 큐레이션 서비스입니다.
