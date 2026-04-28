@@ -153,7 +153,7 @@ public class BenefitCandidateService {
     }
 
     private String buildConditionSummary(BenefitCandidateApproveRequest request, BenefitCandidate candidate) {
-        String usageCondition = firstText(request.usageCondition(), candidate.getEvidenceText());
+        String usageCondition = firstText(request.usageCondition(), firstText(candidate.getUsageGuideText(), candidate.getEvidenceText()));
         StringBuilder builder = new StringBuilder(truncate(usageCondition, 400));
         if (Boolean.TRUE.equals(request.requiresSignup()) || Boolean.TRUE.equals(candidate.getRequiresSignup())) {
             builder.append(" 회원가입 필요.");

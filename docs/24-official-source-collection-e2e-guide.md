@@ -135,3 +135,35 @@ cd backend
 - `durationMillis`
 
 `sameAsPrevious=true`는 실패가 아니라 정상 성공이다. 같은 본문이라 Candidate 생성을 생략했다는 뜻이다.
+
+## 10. fixture SourceWatch 관리
+
+로컬 fixture SourceWatch는 자동 수집 E2E 검증 전용 데이터다. 실제 운영 SourceWatch 목록에서는 기본적으로 숨김 처리되며, `/admin/source-watches` 화면에서 `테스트 fixture 포함 보기`를 체크해야 함께 확인할 수 있다.
+
+fixture 데이터가 더 이상 필요하지 않으면 삭제하지 말고 `fixture 비활성화` 버튼 또는 개별 활성 상태 변경으로 비활성화한다. hard delete는 하지 않는다.
+
+실제 브랜드가 브랜드 드롭다운에 없다면 `/admin/brands`에서 브랜드를 먼저 등록한 뒤 `/admin/source-watches`로 돌아와 SourceWatch를 등록한다.
+
+## 11. Candidate 근거 문장 품질 확인
+
+자동 수집은 HTML 전체를 후보로 저장하지 않는다. 추출 단계에서 메뉴, 네비게이션, 푸터, SNS, 약관성 영역을 최대한 제거하고, Candidate 생성 단계에서 생일/birthday 키워드 주변 문장만 `evidenceText`로 저장한다.
+
+E2E 확인 시 Candidate 상세에서 아래를 확인한다.
+
+- `summary`가 메뉴 목록이나 푸터 문구 전체를 포함하지 않는지 확인
+- `evidenceText`가 생일 쿠폰/혜택과 직접 관련된 짧은 문장 위주인지 확인
+- `evidenceText`가 너무 길면 SourceWatch URL이 실제 본문 페이지인지 다시 확인
+- 기존에 길게 생성된 Candidate는 새 정제 규칙이 소급 적용되지 않으므로 필요하면 `REJECTED` 처리 후 재수집한다.
+
+## 12. 구체 혜택/이용안내 확인
+
+Candidate 상세 화면에서는 `summary` 아래에 `구체 혜택 추정`과 `이용안내 추정`이 표시된다. 자동 수집은 생일 혜택 존재 여부뿐 아니라 쿠폰별 상세 혜택과 공통 이용 조건을 분리해 Candidate에 저장한다.
+
+검수자는 아래를 확인한 뒤 Benefit 승인 폼을 정리한다.
+
+- `benefitDetailText`: 할인 금액, 할인율, 무료/증정 상품, 제휴 브랜드별 쿠폰 내용이 들어있는지 확인
+- `usageGuideText`: 회원 전용, 현금 교환 불가, 타인 양도 불가, 발급 횟수, 생년월일 기준, 유효기간/사용 조건 안내가 들어있는지 확인
+- 승인 폼의 `usageCondition`은 `usageGuideText`가 있으면 이를 기본값으로 사용하고, 없으면 `evidenceText`를 사용한다.
+- `minimumPurchaseDescription` 기본값은 쿠폰별 최소 구매 금액과 사용 조건은 각 쿠폰 상세 안내를 확인해야 한다는 문장이다.
+
+자동 수집은 AI/Gemini/OpenAI 연동, Playwright 추가, 블로그/커뮤니티 수집, Candidate 자동 PUBLISHED, Public API Candidate 노출, 승인 없는 Benefit 생성을 하지 않는다.

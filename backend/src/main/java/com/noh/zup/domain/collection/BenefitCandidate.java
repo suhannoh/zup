@@ -72,6 +72,12 @@ public class BenefitCandidate extends BaseTimeEntity {
     @Column(nullable = false)
     private String evidenceText;
 
+    @Lob
+    private String benefitDetailText;
+
+    @Lob
+    private String usageGuideText;
+
     @Column(nullable = false, precision = 3, scale = 2)
     private BigDecimal confidence;
 
@@ -104,6 +110,8 @@ public class BenefitCandidate extends BaseTimeEntity {
             Boolean requiresSignup,
             Boolean requiresMembership,
             String evidenceText,
+            String benefitDetailText,
+            String usageGuideText,
             BigDecimal confidence
     ) {
         this.brand = brand;
@@ -118,8 +126,44 @@ public class BenefitCandidate extends BaseTimeEntity {
         this.requiresSignup = requiresSignup;
         this.requiresMembership = requiresMembership;
         this.evidenceText = evidenceText;
+        this.benefitDetailText = benefitDetailText;
+        this.usageGuideText = usageGuideText;
         this.confidence = confidence;
         this.status = BenefitCandidateStatus.NEEDS_REVIEW;
+    }
+
+    public BenefitCandidate(
+            Brand brand,
+            SourceWatch sourceWatch,
+            PageSnapshot snapshot,
+            String title,
+            String summary,
+            BenefitType benefitType,
+            OccasionType occasionType,
+            BirthdayTimingType birthdayTimingType,
+            Boolean requiresApp,
+            Boolean requiresSignup,
+            Boolean requiresMembership,
+            String evidenceText,
+            BigDecimal confidence
+    ) {
+        this(
+                brand,
+                sourceWatch,
+                snapshot,
+                title,
+                summary,
+                benefitType,
+                occasionType,
+                birthdayTimingType,
+                requiresApp,
+                requiresSignup,
+                requiresMembership,
+                evidenceText,
+                null,
+                null,
+                confidence
+        );
     }
 
     public void updateStatus(BenefitCandidateStatus status, String reviewMemo) {
@@ -188,6 +232,14 @@ public class BenefitCandidate extends BaseTimeEntity {
 
     public String getEvidenceText() {
         return evidenceText;
+    }
+
+    public String getBenefitDetailText() {
+        return benefitDetailText;
+    }
+
+    public String getUsageGuideText() {
+        return usageGuideText;
     }
 
     public BigDecimal getConfidence() {

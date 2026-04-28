@@ -22,6 +22,8 @@ export type BenefitCandidate = {
   requiresSignup: boolean;
   requiresMembership: boolean;
   evidenceText: string;
+  benefitDetailText?: string | null;
+  usageGuideText?: string | null;
   confidence: number;
   status: BenefitCandidateStatus;
   reviewMemo: string | null;

@@ -41,9 +41,10 @@ type ApproveFormState = {
 };
 
 function toApproveForm(candidate: BenefitCandidate): ApproveFormState {
+  const usageCondition = candidate.usageGuideText || candidate.evidenceText;
   return {
     title: candidate.title,
-    summary: candidate.summary,
+    summary: truncate(candidate.summary, 300),
     benefitType: candidate.benefitType,
     occasionType: candidate.occasionType ?? "BIRTHDAY",
     birthdayTimingType: candidate.birthdayTimingType,
@@ -51,10 +52,14 @@ function toApproveForm(candidate: BenefitCandidate): ApproveFormState {
     requiresApp: candidate.requiresApp,
     requiresSignup: candidate.requiresSignup,
     requiresMembership: candidate.requiresMembership,
-    minimumPurchaseDescription: "",
-    usageCondition: candidate.evidenceText,
+    minimumPurchaseDescription: "쿠폰별 최소 구매 금액과 사용 조건은 각 쿠폰 상세 안내를 확인해야 합니다.",
+    usageCondition: truncate(usageCondition, 700),
     adminMemo: "",
   };
+}
+
+function truncate(value: string, maxLength: number) {
+  return value.length <= maxLength ? value : value.slice(0, maxLength);
 }
 
 function normalizeOptional(value: string) {
@@ -227,6 +232,8 @@ export function AdminBenefitCandidateDetailPanel({ candidateId }: { candidateId:
           <Info label="SourceWatch 제목" value={sourceWatch?.title ?? `#${candidate.sourceWatchId}`} />
           <Info label="SourceWatch URL" value={sourceWatch?.url ?? "-"} />
           <Info label="summary" value={candidate.summary} wide />
+          <Info label="구체 혜택 추정" value={candidate.benefitDetailText ?? "-"} wide />
+          <Info label="이용안내 추정" value={candidate.usageGuideText ?? "-"} wide />
           <Info label="evidenceText" value={candidate.evidenceText} wide />
           <Info label="benefitType" value={candidate.benefitType} />
           <Info label="occasionType" value={candidate.occasionType} />

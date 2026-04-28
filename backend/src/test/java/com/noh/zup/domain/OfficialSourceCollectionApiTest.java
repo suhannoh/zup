@@ -1,5 +1,6 @@
 package com.noh.zup.domain;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -13,7 +14,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.noh.zup.domain.brand.Brand;
 import com.noh.zup.domain.brand.BrandRepository;
+import com.noh.zup.domain.category.CategoryRepository;
 import com.noh.zup.domain.collection.CollectionTriggerType;
 import com.noh.zup.domain.collection.SourceWatchService;
 import com.noh.zup.domain.collection.fetch.FetchResult;
@@ -52,6 +55,9 @@ class OfficialSourceCollectionApiTest {
 
     @Autowired
     private BrandRepository brandRepository;
+
+    @Autowired
+    private CategoryRepository categoryRepository;
 
     @Autowired
     private SourceWatchService sourceWatchService;
@@ -110,6 +116,79 @@ class OfficialSourceCollectionApiTest {
                 .andExpect(jsonPath("$.data[0].sameAsPrevious").value(false))
                 .andExpect(jsonPath("$.data[0].candidateCount").value(1))
                 .andExpect(jsonPath("$.data[0].durationMillis").exists());
+    }
+
+    @Test
+    void collectCleansNavigationTextFromCandidateEvidenceAndSummary() throws Exception {
+        when(officialSourceFetcher.fetch(anyString())).thenReturn(FetchResult.success(200, noisyBirthdayCouponHtml()));
+        Long brandId = brandRepository.findBySlug("cgv").orElseThrow().getId();
+        Long sourceWatchId = createSourceWatch(brandId, "Noisy birthday coupon page");
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.candidateCount").value(1));
+
+        long candidateId = getCandidateIdBySourceWatch(sourceWatchId);
+        MvcResult result = mockMvc.perform(get("/api/v1/admin/benefit-candidates/{id}", candidateId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.title").value("CGV 생일축하 10종 쿠폰"))
+                .andReturn();
+
+        JsonNode candidate = objectMapper.readTree(result.getResponse().getContentAsByteArray()).get("data");
+        String summary = candidate.get("summary").asText();
+        String evidenceText = candidate.get("evidenceText").asText();
+
+        assertThat(summary).contains("생일");
+        assertThat(summary).doesNotContain("개인정보처리방침", "전체메뉴", "고객센터");
+        assertThat(evidenceText).contains("생일 축하");
+        assertThat(evidenceText).doesNotContain("개인정보처리방침", "전체메뉴", "고객센터", "SNS");
+        assertThat(evidenceText.length()).isLessThanOrEqualTo(500);
+    }
+
+    @Test
+    void collectExtractsBirthdayCouponDetailsAndUsageGuide() throws Exception {
+        when(officialSourceFetcher.fetch(anyString())).thenReturn(FetchResult.success(200, cjOneBirthdayCouponHtml()));
+        Long brandId = ensureBrand("CJ ONE", "cj-one", "movie-culture");
+        Long sourceWatchId = createSourceWatch(brandId, "CJ ONE birthday coupon page");
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.candidateCount").value(1));
+
+        long candidateId = getCandidateIdBySourceWatch(sourceWatchId);
+        MvcResult result = mockMvc.perform(get("/api/v1/admin/benefit-candidates/{id}", candidateId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.title").value("CJ ONE 생일축하 10종 쿠폰"))
+                .andExpect(jsonPath("$.data.benefitDetailText").exists())
+                .andExpect(jsonPath("$.data.usageGuideText").exists())
+                .andReturn();
+
+        JsonNode candidate = objectMapper.readTree(result.getResponse().getContentAsByteArray()).get("data");
+        String benefitDetailText = candidate.get("benefitDetailText").asText();
+        String usageGuideText = candidate.get("usageGuideText").asText();
+        String summary = candidate.get("summary").asText();
+
+        assertThat(benefitDetailText).contains("50% 할인", "10,000원 할인", "무료");
+        assertThat(usageGuideText).contains("회원만 이용", "현금으로 교환", "타인에게 양도", "1년에 1번 지급");
+        assertThat(summary).contains("CGV", "VIPS");
+        assertThat(usageGuideText.length()).isLessThanOrEqualTo(700);
+
+        MvcResult approveResult = mockMvc.perform(post("/api/v1/admin/benefit-candidates/{id}/approve", candidateId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of())))
+                .andExpect(status().isOk())
+                .andReturn();
+        long benefitId = objectMapper.readTree(approveResult.getResponse().getContentAsByteArray())
+                .get("data")
+                .get("benefitId")
+                .asLong();
+
+        mockMvc.perform(get("/api/v1/admin/benefit-candidates/{id}", candidateId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("APPROVED"));
+        mockMvc.perform(get("/api/v1/admin/benefits/{id}", benefitId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.conditionSummary").value(org.hamcrest.Matchers.containsString("회원만 이용")));
     }
 
     @Test
@@ -378,6 +457,15 @@ class OfficialSourceCollectionApiTest {
         return response.get("data").get("id").asLong();
     }
 
+    private Long ensureBrand(String name, String slug, String categorySlug) {
+        return brandRepository.findBySlug(slug)
+                .map(Brand::getId)
+                .orElseGet(() -> {
+                    var category = categoryRepository.findBySlug(categorySlug).orElseThrow();
+                    return brandRepository.save(new Brand(category, name, slug)).getId();
+                });
+    }
+
     private long getCandidateIdBySourceWatch(Long sourceWatchId) throws Exception {
         MvcResult result = mockMvc.perform(get("/api/v1/admin/benefit-candidates"))
                 .andExpect(status().isOk())
@@ -399,6 +487,49 @@ class OfficialSourceCollectionApiTest {
                         <nav>navigation</nav>
                         <main>회원 생일에는 앱에서 birthday coupon을 받을 수 있습니다. 생일 쿠폰은 무료 gift 혜택으로 제공됩니다.</main>
                         <footer>footer</footer>
+                    </body>
+                </html>
+                """;
+    }
+
+    private String noisyBirthdayCouponHtml() {
+        return """
+                <html>
+                    <body>
+                        <nav>나의 ONE 나의포인트 고객센터 개인정보처리방침 전체메뉴 닫기</nav>
+                        <main>
+                            <h1>생일축하쿠폰</h1>
+                            <p>CJ ONE 회원이라면 누구나 생일 축하 10종 쿠폰 증정</p>
+                            <p>CJ ONE 회원은 매년 1회 생일 축하쿠폰 혜택을 받을 수 있습니다.</p>
+                            <p>설정된 생일 정보를 확인하세요!</p>
+                        </main>
+                        <footer>개인정보처리방침 고객센터 SNS</footer>
+                    </body>
+                </html>
+                """;
+    }
+
+    private String cjOneBirthdayCouponHtml() {
+        return """
+                <html>
+                    <body>
+                        <main>
+                            <h1>생일 축하 10종 쿠폰 증정</h1>
+                            <section>
+                                <p>CGV 매점 콤보 구매 시 50% 할인</p>
+                                <p>VIPS 10,000원 할인</p>
+                                <p>계절밥상 3,000원 할인</p>
+                                <p>더플레이스 리코타 프루타 샐러드 1개 무료</p>
+                                <p>CJ THE MARKET 3,000원 중복 할인</p>
+                            </section>
+                            <section>
+                                <h2>이용안내</h2>
+                                <p>CJ ONE 회원만 이용 가능합니다.</p>
+                                <p>CJ ONE 쿠폰은 현금으로 교환 및 타인에게 양도할 수 없습니다.</p>
+                                <p>생일축하쿠폰은 1년에 1번 지급되며, 한번 발급되면 추가 발급되지 않습니다.</p>
+                                <p>CJ ONE 회원정보에 등록된 생년월일을 기준으로 쿠폰이 발급됩니다.</p>
+                            </section>
+                        </main>
                     </body>
                 </html>
                 """;

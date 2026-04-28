@@ -95,8 +95,10 @@ export function AdminSourceWatchesPanel() {
   const [brands, setBrands] = useState<AdminBrand[]>([]);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editing, setEditing] = useState<SourceWatch | null>(null);
+  const [showFixtures, setShowFixtures] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deactivatingFixtures, setDeactivatingFixtures] = useState(false);
   const [collectingId, setCollectingId] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -194,6 +196,48 @@ export function AdminSourceWatchesPanel() {
     }
   }
 
+  function isFixtureSourceWatch(sourceWatch: SourceWatch) {
+    const title = sourceWatch.title.toLowerCase();
+    const url = sourceWatch.url.toLowerCase();
+    return (
+      title.startsWith("local collection fixture") ||
+      url.includes("/collection-fixtures/") ||
+      url.includes("localhost:3000/collection-fixtures") ||
+      url.includes("127.0.0.1:3000/collection-fixtures") ||
+      url.includes("[::1]:3000/collection-fixtures")
+    );
+  }
+
+  async function handleDeactivateFixtures() {
+    const activeFixtures = sourceWatches.filter((sourceWatch) => isFixtureSourceWatch(sourceWatch) && sourceWatch.isActive);
+    if (activeFixtures.length === 0) {
+      setMessage("비활성화할 active fixture SourceWatch가 없습니다.");
+      setError(null);
+      return;
+    }
+
+    setDeactivatingFixtures(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const results = await Promise.allSettled(
+        activeFixtures.map((sourceWatch) => updateSourceWatchActive(sourceWatch.id, { isActive: false }))
+      );
+      await loadAll();
+      if (results.some((result) => result.status === "rejected")) {
+        setError("fixture 비활성화 중 일부 항목 처리에 실패했습니다.");
+      } else {
+        setMessage("fixture SourceWatch를 비활성화했습니다.");
+      }
+    } finally {
+      setDeactivatingFixtures(false);
+    }
+  }
+
+  const visibleSourceWatches = showFixtures
+    ? sourceWatches
+    : sourceWatches.filter((sourceWatch) => !isFixtureSourceWatch(sourceWatch));
+
   return (
     <section className="space-y-5">
       {message ? <Notice tone="success">{message}</Notice> : null}
@@ -217,6 +261,13 @@ export function AdminSourceWatchesPanel() {
               </option>
             ))}
           </FieldSelect>
+          <div className="rounded-lg border border-border bg-neutral-50 p-3 text-sm leading-6 text-neutral-700">
+            <p>현재 등록된 브랜드 {brands.length.toLocaleString()}개</p>
+            <p className="mt-1">등록하려는 브랜드가 없다면 먼저 브랜드 관리에서 브랜드를 추가하세요.</p>
+            <Link className="mt-2 inline-flex rounded-lg border border-border bg-white px-3 py-2 text-sm font-semibold hover:border-accent" href="/admin/brands">
+              브랜드 관리로 이동
+            </Link>
+          </div>
           <FieldSelect label="출처 유형" value={form.sourceType} onChange={(sourceType) => setForm((current) => ({ ...current, sourceType: sourceType as SourceType }))}>
             {sourceTypeOptions.map((sourceType) => (
               <option key={sourceType} value={sourceType}>
@@ -233,9 +284,30 @@ export function AdminSourceWatchesPanel() {
         </form>
 
         <div className="space-y-4">
+          <div className="rounded-lg border border-border bg-white p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="text-sm leading-6 text-neutral-700">
+                로컬 fixture 데이터는 자동 수집 E2E 검증용입니다. 실제 운영 SourceWatch 목록에서는 기본적으로 숨김 처리됩니다.
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <input checked={showFixtures} onChange={(event) => setShowFixtures(event.target.checked)} type="checkbox" />
+                  테스트 fixture 포함 보기
+                </label>
+                <button
+                  className="h-9 rounded-lg border border-border px-3 text-sm font-semibold disabled:opacity-60"
+                  disabled={deactivatingFixtures}
+                  onClick={handleDeactivateFixtures}
+                  type="button"
+                >
+                  {deactivatingFixtures ? "처리 중" : "fixture 비활성화"}
+                </button>
+              </div>
+            </div>
+          </div>
           {loading ? <EmptyBox>SourceWatch 목록을 불러오는 중입니다.</EmptyBox> : null}
-          {!loading && sourceWatches.length === 0 ? <EmptyBox>등록된 공식 출처가 없습니다.</EmptyBox> : null}
-          {sourceWatches.map((sourceWatch) => (
+          {!loading && visibleSourceWatches.length === 0 ? <EmptyBox>표시할 SourceWatch가 없습니다.</EmptyBox> : null}
+          {visibleSourceWatches.map((sourceWatch) => (
             <article key={sourceWatch.id} className="rounded-lg border border-border bg-white p-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>

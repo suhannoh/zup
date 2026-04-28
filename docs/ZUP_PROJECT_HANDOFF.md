@@ -28,6 +28,7 @@
 
 - `docs/22-official-source-auto-collection-plan.md`
 - `docs/24-official-source-collection-e2e-guide.md`
+- `docs/25-real-sourcewatch-registration-policy.md`
 - `scripts/smoke-test-collection-local.ps1`
 
 스케줄러 메모:
@@ -45,6 +46,25 @@ CollectionRun 메모:
 - 수동 수집은 `MANUAL`, 스케줄러 수집은 `SCHEDULED`
 - `sameAsPrevious=true`는 정상 성공
 - 실패 원인은 `failureReason`과 `errorMessage`로 확인
+
+Candidate 정제 메모:
+
+- HTML 전체를 후보 summary/evidenceText로 저장하지 않는다.
+- 메뉴, 네비게이션, 푸터, SNS, 약관성 영역을 제거한 뒤 생일 키워드 주변 근거 문장만 저장한다.
+- `evidenceText`는 최대 3문장, 500자 이내를 목표로 한다.
+- 자동 수집은 생일 혜택 존재 여부뿐 아니라 구체 혜택 목록과 이용안내를 분리해 `benefitDetailText`, `usageGuideText`에 저장한다.
+- 운영자는 `benefitDetailText`와 `usageGuideText`를 검수한 뒤 승인 폼의 `summary`와 `usageCondition`을 정리해 Benefit으로 승인한다.
+- 승인 폼의 `usageCondition` 기본값은 `usageGuideText` 우선, 없으면 `evidenceText` fallback이다.
+- 기존에 길게 생성된 Candidate는 필요하면 `REJECTED` 처리 후 재수집한다.
+
+다음 단계:
+
+- `docs/25-real-sourcewatch-registration-policy.md` 기준으로 실제 공식 URL 3~5개 선정
+- 관리자 화면에서 SourceWatch 수동 등록
+- 수동 collect 실행
+- Candidate evidence 확인
+- 승인 시 VERIFIED Benefit 생성 확인
+- 필요 시 관리자가 PUBLISHED 전환
 
 ## 프로젝트명
 
@@ -185,6 +205,13 @@ REJECTED
 - 배포 환경 구성
 - Search Console 등록
 - Naver Search Advisor 등록
+
+## SourceWatch 운영 입력 메모
+
+- `/admin/source-watches`에서 실제 브랜드가 드롭다운에 없으면 `/admin/brands`에서 브랜드를 먼저 등록한다.
+- 로컬 fixture SourceWatch는 E2E 검증용이며 운영 목록에서는 기본 숨김 처리한다.
+- fixture SourceWatch는 삭제하지 않고 필요 시 비활성화한다.
+- 실제 공식 URL 등록 전에는 `docs/25-real-sourcewatch-registration-policy.md` 기준을 확인한다.
 
 ## 기술 스택
 

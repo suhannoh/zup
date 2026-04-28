@@ -18,6 +18,8 @@ PowerShell smoke test:
 
 관리자 대시보드 `/admin`에서는 SourceWatch 수, 활성 SourceWatch 수, 검수 대기 Candidate 수, 최근 24시간 수집 성공/실패/스킵 수와 최근 실패 SourceWatch를 요약해서 확인할 수 있습니다. 운영자는 실패 항목을 확인한 뒤 URL 수정 또는 비활성화를 검토합니다.
 
+실제 공식 출처 URL을 SourceWatch에 등록하기 전에는 [실데이터 SourceWatch 등록 정책](docs/25-real-sourcewatch-registration-policy.md) 기준을 확인해야 합니다. 초기 운영 검증 단계에서는 스케줄러를 켜기 전에 3~5개 공식 URL만 수동 collect로 검증합니다.
+
 몰라서 못 받던 혜택, 오늘 줍자.
 
 Zup은 브랜드별 생일 혜택을 공식 출처 기준으로 정리하고, 사용자가 앱 필요 여부, 멤버십 조건, 사용 가능 기간, 무료/할인 여부를 빠르게 확인할 수 있게 돕는 검색 유입형 정보 큐레이션 서비스입니다.
