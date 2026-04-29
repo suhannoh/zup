@@ -33,6 +33,7 @@ app:
       failure-retry-minutes: ${COLLECTION_FAILURE_RETRY_MINUTES:180}
   crawler:
     user-agent: ${CRAWLER_USER_AGENT:ZupOfficialSourceCollector/1.0}
+    min-domain-interval-seconds: ${CRAWLER_MIN_DOMAIN_INTERVAL_SECONDS:60}
   admin:
     email: ${ADMIN_EMAIL:admin@zup.local}
     password: ${ADMIN_PASSWORD:admin1234}

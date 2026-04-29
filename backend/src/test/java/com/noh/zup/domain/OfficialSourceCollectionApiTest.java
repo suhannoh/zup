@@ -4,7 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -26,9 +29,14 @@ import com.noh.zup.domain.collection.SourceWatchRepository;
 import com.noh.zup.domain.collection.SourceWatchService;
 import com.noh.zup.domain.collection.fetch.FetchResult;
 import com.noh.zup.domain.collection.fetch.OfficialSourceFetcher;
+import com.noh.zup.domain.collection.scheduler.CollectionLock;
+import com.noh.zup.domain.collection.scheduler.CollectionRedisLock;
+import java.time.Duration;
 import java.util.Map;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -50,7 +58,8 @@ import org.springframework.test.web.servlet.MvcResult;
         "spring.datasource.driver-class-name=org.h2.Driver",
         "spring.datasource.username=sa",
         "spring.datasource.password=",
-        "spring.jpa.hibernate.ddl-auto=create-drop"
+        "spring.jpa.hibernate.ddl-auto=create-drop",
+        "app.crawler.min-domain-interval-seconds=0"
 })
 class OfficialSourceCollectionApiTest {
 
@@ -77,6 +86,16 @@ class OfficialSourceCollectionApiTest {
 
     @MockBean
     private OfficialSourceFetcher officialSourceFetcher;
+
+    @MockBean
+    private CollectionRedisLock collectionRedisLock;
+
+    @BeforeEach
+    void setUpLocks() {
+        when(collectionRedisLock.tryLock(anyLong(), any(Duration.class)))
+                .thenAnswer(invocation -> Optional.of(new CollectionLock("test-lock:" + invocation.getArgument(0), "token")));
+        doNothing().when(collectionRedisLock).release(any(CollectionLock.class));
+    }
 
     @Test
     void sourceWatchCanBeCreatedAndUpdated() throws Exception {
@@ -340,6 +359,41 @@ class OfficialSourceCollectionApiTest {
                 .andExpect(jsonPath("$.data[0].status").value("SUCCESS"))
                 .andExpect(jsonPath("$.data[0].sameAsPrevious").value(true))
                 .andExpect(jsonPath("$.data[0].candidateCount").value(0));
+    }
+
+    @Test
+    void sourceWatchListIncludesRecentCollectionRunSummary() throws Exception {
+        when(officialSourceFetcher.fetch(anyString())).thenReturn(FetchResult.success(200, birthdayCouponHtml()));
+        Long brandId = brandRepository.findBySlug("starbucks").orElseThrow().getId();
+        Long sourceWatchId = createSourceWatch(brandId, "Recent run summary page");
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.failureReason").doesNotExist());
+
+        mockMvc.perform(get("/api/v1/admin/source-watches"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.id == " + sourceWatchId + ")].recentCollectionRun", hasSize(1)))
+                .andExpect(jsonPath("$.data[?(@.id == " + sourceWatchId + ")].recentCollectionRun.status").value("SUCCESS"))
+                .andExpect(jsonPath("$.data[?(@.id == " + sourceWatchId + ")].recentCollectionRun.candidateCount").value(1));
+    }
+
+    @Test
+    void collectSkipsWhenCollectionAlreadyRunning() throws Exception {
+        when(collectionRedisLock.tryLock(anyLong(), any(Duration.class))).thenReturn(Optional.empty());
+        Long brandId = brandRepository.findBySlug("cgv").orElseThrow().getId();
+        Long sourceWatchId = createSourceWatch(brandId, "Locked source watch page");
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fetched").value(false))
+                .andExpect(jsonPath("$.data.failureReason").value("COLLECTION_ALREADY_RUNNING"))
+                .andExpect(jsonPath("$.data.message").value("같은 SourceWatch 수집이 이미 진행 중입니다."));
+
+        mockMvc.perform(get("/api/v1/admin/source-watches/{id}/collection-runs", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].status").value("SKIPPED"))
+                .andExpect(jsonPath("$.data[0].failureReason").value("COLLECTION_ALREADY_RUNNING"));
     }
 
     @Test

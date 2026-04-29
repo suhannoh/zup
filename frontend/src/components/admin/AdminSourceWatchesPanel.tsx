@@ -16,6 +16,7 @@ import { SOURCE_TYPE_LABELS, SOURCE_TYPE_OPTIONS } from "@/lib/sourceLabels";
 import type { SourceType } from "@/types/adminBenefitSource";
 import type { AdminBrand } from "@/types/adminBrand";
 import type {
+  RecentCollectionRunSummary,
   SourceWatch,
   SourceWatchCollectResponse,
   SourceWatchRegenerateCandidatesResponse,
@@ -70,6 +71,60 @@ function getErrorMessage(error: unknown, fallback: string) {
     return response?.data?.message ?? fallback;
   }
   return fallback;
+}
+
+const skippedFailureReasons = new Set([
+  "SOURCE_WATCH_INACTIVE",
+  "RATE_LIMITED_BY_DOMAIN",
+  "COLLECTION_ALREADY_RUNNING",
+  "ROBOTS_TXT_DISALLOWED",
+  "ROBOTS_TXT_FETCH_FAILED",
+  "ROBOTS_TXT_PARSE_FAILED",
+]);
+
+function getFailureReasonLabel(failureReason: string | null) {
+  if (!failureReason) {
+    return null;
+  }
+  return COLLECTION_FAILURE_REASON_LABELS[failureReason] ?? failureReason;
+}
+
+function getCollectionOutcomeText(result: SourceWatchCollectResponse) {
+  if (!result.failureReason) {
+    return `수집 완료: 후보 ${result.candidateCount}개 생성, 동일 HTML 여부 ${String(result.sameAsPrevious)}`;
+  }
+  const label = getFailureReasonLabel(result.failureReason) ?? result.failureReason;
+  return skippedFailureReasons.has(result.failureReason)
+    ? `수집 건너뜀: ${label}`
+    : `수집 실패: ${label}`;
+}
+
+function extractMatchedRule(errorMessage: string | null) {
+  if (!errorMessage) {
+    return null;
+  }
+  const marker = "matchedRule:";
+  const index = errorMessage.indexOf(marker);
+  if (index < 0) {
+    return null;
+  }
+  return errorMessage.slice(index + marker.length).trim() || null;
+}
+
+function getRobotsSummary(run: RecentCollectionRunSummary | null) {
+  if (!run) {
+    return { label: "확인 이력 없음", detail: null };
+  }
+  if (run.failureReason === "ROBOTS_TXT_DISALLOWED") {
+    return { label: "차단", detail: extractMatchedRule(run.errorMessage) };
+  }
+  if (run.failureReason === "ROBOTS_TXT_FETCH_FAILED") {
+    return { label: "조회 실패", detail: run.errorMessage };
+  }
+  if (run.failureReason === "ROBOTS_TXT_PARSE_FAILED") {
+    return { label: "파싱 실패", detail: run.errorMessage };
+  }
+  return { label: "허용 후 수집 진행", detail: null };
 }
 
 export function AdminSourceWatchesPanel() {
@@ -171,11 +226,7 @@ export function AdminSourceWatchesPanel() {
     try {
       const result = await collectSourceWatch(sourceWatch.id);
       setCollectResults((current) => ({ ...current, [sourceWatch.id]: result }));
-      if (result.failureReason) {
-        setMessage(`수집 보류: ${COLLECTION_FAILURE_REASON_LABELS[result.failureReason] ?? result.failureReason}`);
-      } else {
-        setMessage(`수집 완료: 후보 ${result.candidateCount}개, 동일 HTML 여부 ${String(result.sameAsPrevious)}`);
-      }
+      setMessage(getCollectionOutcomeText(result));
       setSourceWatches(await getSourceWatches());
     } catch (collectError) {
       setError(getErrorMessage(collectError, "수집 실패"));
@@ -340,7 +391,7 @@ export function AdminSourceWatchesPanel() {
                     disabled={!sourceWatch.isActive || collectingId === sourceWatch.id}
                     onClick={() => handleCollect(sourceWatch)}
                   >
-                    {collectingId === sourceWatch.id ? "수집 중" : "수집 실행"}
+                    {collectingId === sourceWatch.id ? "수집 중..." : "수집 실행"}
                   </button>
                   <button
                     className="h-9 rounded-lg border border-blue-600 px-3 text-sm font-semibold text-blue-600 disabled:opacity-60"
@@ -363,9 +414,45 @@ export function AdminSourceWatchesPanel() {
                 <Info label="최근 content hash" value={sourceWatch.lastContentHash ? `${sourceWatch.lastContentHash.slice(0, 16)}...` : "-"} />
                 <Info label="다음 수집 예정" value={formatDateTime(sourceWatch.nextFetchAt)} />
               </dl>
+              <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-semibold text-neutral-800">최근 CollectionRun</span>
+                  {sourceWatch.recentCollectionRun ? (
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                        COLLECTION_STATUS_CLASS[sourceWatch.recentCollectionRun.status] ?? "bg-neutral-100 text-neutral-700"
+                      }`}
+                    >
+                      {COLLECTION_STATUS_LABELS[sourceWatch.recentCollectionRun.status] ?? sourceWatch.recentCollectionRun.status}
+                    </span>
+                  ) : null}
+                </div>
+                {sourceWatch.recentCollectionRun ? (
+                  <dl className="mt-3 grid gap-3 text-sm md:grid-cols-2">
+                    <Info label="최근 수집 상태" value={COLLECTION_STATUS_LABELS[sourceWatch.recentCollectionRun.status] ?? sourceWatch.recentCollectionRun.status} />
+                    <Info label="최근 수집 시각" value={formatDateTime(sourceWatch.recentCollectionRun.startedAt)} />
+                    <Info label="최근 후보 생성 수" value={`${sourceWatch.recentCollectionRun.candidateCount ?? 0}개`} />
+                    <Info label="robots.txt 확인 결과" value={getRobotsSummary(sourceWatch.recentCollectionRun).label} />
+                    <Info
+                      label="최근 실패/스킵 사유"
+                      value={getFailureReasonLabel(sourceWatch.recentCollectionRun.failureReason) ?? "-"}
+                    />
+                    <Info
+                      label="상세 원인"
+                      value={
+                        getRobotsSummary(sourceWatch.recentCollectionRun).detail ??
+                        sourceWatch.recentCollectionRun.errorMessage ??
+                        "-"
+                      }
+                    />
+                  </dl>
+                ) : (
+                  <p className="mt-3 text-sm text-neutral-500">아직 수집 이력이 없습니다.</p>
+                )}
+              </div>
               <div className="mt-4 grid gap-2 text-xs text-neutral-500 md:grid-cols-2">
                 <p className="rounded-lg bg-neutral-50 p-3">
-                  <span className="font-semibold text-neutral-700">수집 실행</span>: robots.txt를 확인한 뒤 허용된 공식 URL만 다시 가져옵니다.
+                  <span className="font-semibold text-neutral-700">수집 실행</span>: 도메인 최소 간격과 robots.txt를 확인한 뒤 허용된 공식 URL만 다시 가져옵니다.
                 </p>
                 <p className="rounded-lg bg-neutral-50 p-3">
                   <span className="font-semibold text-neutral-700">후보 재생성</span>: 저장된 최신 스냅샷을 다시 분석합니다.
@@ -375,9 +462,8 @@ export function AdminSourceWatchesPanel() {
                 <div className={`mt-4 rounded-lg p-3 text-sm ${collectResults[sourceWatch.id].failureReason ? "bg-amber-50 text-amber-800" : "bg-blue-50 text-blue-800"}`}>
                   {collectResults[sourceWatch.id].failureReason ? (
                     <>
-                      수집 보류 · 사유:{" "}
-                      {COLLECTION_FAILURE_REASON_LABELS[collectResults[sourceWatch.id].failureReason ?? ""] ??
-                        collectResults[sourceWatch.id].failureReason}
+                      {skippedFailureReasons.has(collectResults[sourceWatch.id].failureReason ?? "") ? "수집 건너뜀" : "수집 실패"} · 사유:{" "}
+                      {getFailureReasonLabel(collectResults[sourceWatch.id].failureReason) ?? collectResults[sourceWatch.id].failureReason}
                       <p className="mt-1 text-xs leading-5">{collectResults[sourceWatch.id].message}</p>
                     </>
                   ) : (

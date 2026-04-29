@@ -16,10 +16,14 @@ public record SourceWatchResponse(
         SourceWatchStatus lastStatus,
         Integer failureCount,
         LocalDateTime nextFetchAt,
+        RecentCollectionRunSummaryResponse recentCollectionRun,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
-    public static SourceWatchResponse from(SourceWatch sourceWatch) {
+    public static SourceWatchResponse from(
+            SourceWatch sourceWatch,
+            RecentCollectionRunSummaryResponse recentCollectionRun
+    ) {
         return new SourceWatchResponse(
                 sourceWatch.getId(),
                 sourceWatch.getBrand().getId(),
@@ -33,6 +37,7 @@ public record SourceWatchResponse(
                 sourceWatch.getLastStatus(),
                 sourceWatch.getFailureCount(),
                 sourceWatch.getNextFetchAt(),
+                recentCollectionRun,
                 sourceWatch.getCreatedAt(),
                 sourceWatch.getUpdatedAt()
         );

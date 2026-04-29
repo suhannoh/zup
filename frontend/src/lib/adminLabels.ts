@@ -16,13 +16,15 @@ export const CANDIDATE_STATUS_CLASS: Record<BenefitCandidateStatus, string> = {
 
 export const COLLECTION_STATUS_LABELS: Record<string, string> = {
   READY: "대기",
+  RUNNING: "수집 중",
   SUCCESS: "성공",
   FAILED: "실패",
-  SKIPPED: "스킵",
+  SKIPPED: "건너뜀",
 };
 
 export const COLLECTION_STATUS_CLASS: Record<string, string> = {
   READY: "bg-neutral-100 text-neutral-700",
+  RUNNING: "bg-blue-50 text-blue-700",
   SUCCESS: "bg-green-50 text-green-700",
   FAILED: "bg-red-50 text-red-700",
   SKIPPED: "bg-amber-50 text-amber-700",
@@ -35,6 +37,8 @@ export const TRIGGER_TYPE_LABELS: Record<string, string> = {
 
 export const COLLECTION_FAILURE_REASON_LABELS: Record<string, string> = {
   SOURCE_WATCH_INACTIVE: "비활성 SourceWatch",
+  RATE_LIMITED_BY_DOMAIN: "도메인 최소 수집 간격 미도달",
+  COLLECTION_ALREADY_RUNNING: "이미 수집 진행 중",
   FETCH_FAILED: "HTML 수집 실패",
   EXTRACT_FAILED: "본문 추출 실패",
   ROBOTS_TXT_DISALLOWED: "robots.txt 차단",

@@ -282,4 +282,8 @@ Infra:
 - SourceWatch 수집 실행 전 대상 도메인의 `robots.txt`를 확인한다. `Disallow`에 매칭되는 경로는 자동 수집하지 않는다.
 - `robots.txt`가 없거나 404이면 수집 가능으로 보지만, 조회 실패나 파싱 실패는 보수적으로 수집 보류 처리한다.
 - robots 차단/조회 실패/파싱 실패는 CollectionRun의 `failureReason`에 각각 `ROBOTS_TXT_DISALLOWED`, `ROBOTS_TXT_FETCH_FAILED`, `ROBOTS_TXT_PARSE_FAILED`로 남긴다.
+- 같은 `host`의 최근 `SUCCESS`/`FAILED`/`SKIPPED` 실행이 `app.crawler.min-domain-interval-seconds` 이내이면 `RATE_LIMITED_BY_DOMAIN`으로 `SKIPPED` 처리한다.
+- 수동 수집은 SourceWatch 단위 lock으로 중복 실행을 막고, 이미 진행 중이면 `COLLECTION_ALREADY_RUNNING`으로 `SKIPPED` 처리한다.
+- `/admin/source-watches` 카드에서 최근 CollectionRun 상태, 시각, 후보 생성 수, 실패/스킵 사유, robots.txt 확인 결과를 함께 확인한다.
+- 반복 실패가 누적되면 `failureCount`, `nextFetchAt` 기반 backoff를 다음 단계 개선 후보로 본다.
 - 외부 이미지 URL은 관리자 검수 참고용이다. Public 화면에는 기본적으로 외부 브랜드 로고/쿠폰 이미지를 직접 노출하지 않고 텍스트 정보와 공식 출처 링크를 우선한다.
