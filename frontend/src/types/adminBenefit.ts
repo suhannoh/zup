@@ -126,4 +126,5 @@ export type AdminBenefitSearchParams = {
   benefitType?: BenefitType;
   birthdayTimingType?: BirthdayTimingType;
   isActive?: boolean;
+  limit?: number;
 };

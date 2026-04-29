@@ -1,4 +1,4 @@
-export type CollectionTriggerType = "MANUAL" | "SCHEDULED";
+export type CollectionTriggerType = "MANUAL" | "SCHEDULED" | "MANUAL_REGENERATE_CANDIDATES";
 
 export type CollectionRunStatus = "RUNNING" | "SUCCESS" | "FAILED" | "SKIPPED";
 
@@ -12,13 +12,15 @@ export type CollectionRun = {
   triggerType: CollectionTriggerType;
   status: CollectionRunStatus;
   startedAt: string;
-  endedAt: string | null;
+  finishedAt: string | null;
   durationMillis: number | null;
   fetched: boolean;
   sameAsPrevious: boolean;
   candidateCount: number;
+  snapshotId: number | null;
   failureReason: string | null;
-  errorMessage: string | null;
+  message: string;
+  detailReason: string | null;
 };
 
 export type SourceWatchCollectionRunHistory = {
@@ -34,4 +36,12 @@ export type SourceWatchCollectionRunHistory = {
   finishedAt: string | null;
   message: string;
   detailReason: string | null;
+};
+
+export type CollectionRunSearchParams = {
+  status?: CollectionRunStatus;
+  failureReason?: string;
+  sourceWatchId?: number;
+  keyword?: string;
+  limit?: number;
 };

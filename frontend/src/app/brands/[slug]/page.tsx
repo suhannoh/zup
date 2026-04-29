@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BenefitCard } from "@/components/public/BenefitCard";
@@ -9,6 +10,8 @@ import type { BrandDetail } from "@/types/brand";
 
 export const dynamic = "force-dynamic";
 
+const getBrandDetailCached = cache((slug: string) => getBrandDetail(slug));
+
 type BrandDetailPageProps = {
   params: Promise<{ slug: string }>;
 };
@@ -17,7 +20,7 @@ export async function generateMetadata({ params }: BrandDetailPageProps): Promis
   const { slug } = await params;
 
   try {
-    const brand = await getBrandDetail(slug);
+    const brand = await getBrandDetailCached(slug);
     const title = `${brand.name} 생일 혜택 - Zup`;
     const description = `${brand.name} 생일 혜택의 앱 필요 여부, 멤버십 조건, 사용 기간, 공식 출처를 확인하세요.`;
 
@@ -53,7 +56,7 @@ export default async function BrandDetailPage({ params }: BrandDetailPageProps) 
 
   let brand: BrandDetail;
   try {
-    brand = await getBrandDetail(slug);
+    brand = await getBrandDetailCached(slug);
   } catch (error) {
     if (isApiNotFound(error)) {
       notFound();

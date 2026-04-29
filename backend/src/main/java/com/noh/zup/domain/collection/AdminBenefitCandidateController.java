@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -22,8 +23,17 @@ public class AdminBenefitCandidateController {
     }
 
     @GetMapping
-    public ApiResponse<List<BenefitCandidateResponse>> getCandidates() {
-        return ApiResponse.success(benefitCandidateService.getCandidates(), "benefit candidates fetched");
+    public ApiResponse<List<BenefitCandidateResponse>> getCandidates(
+            @RequestParam(required = false) Long sourceWatchId,
+            @RequestParam(required = false) Long collectionRunId,
+            @RequestParam(required = false) BenefitCandidateStatus status,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer limit
+    ) {
+        return ApiResponse.success(
+                benefitCandidateService.getCandidates(sourceWatchId, collectionRunId, status, keyword, limit),
+                "benefit candidates fetched"
+        );
     }
 
     @GetMapping("/{id}")

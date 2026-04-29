@@ -17,6 +17,10 @@ import com.noh.zup.domain.verification.VerificationLogRepository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -29,31 +33,55 @@ public class BenefitCandidateService {
     private final BenefitDetailItemRepository benefitDetailItemRepository;
     private final BenefitSourceRepository benefitSourceRepository;
     private final VerificationLogRepository verificationLogRepository;
+    private final CollectionRunRepository collectionRunRepository;
 
     public BenefitCandidateService(
             BenefitCandidateRepository benefitCandidateRepository,
             BenefitRepository benefitRepository,
             BenefitDetailItemRepository benefitDetailItemRepository,
             BenefitSourceRepository benefitSourceRepository,
-            VerificationLogRepository verificationLogRepository
+            VerificationLogRepository verificationLogRepository,
+            CollectionRunRepository collectionRunRepository
     ) {
         this.benefitCandidateRepository = benefitCandidateRepository;
         this.benefitRepository = benefitRepository;
         this.benefitDetailItemRepository = benefitDetailItemRepository;
         this.benefitSourceRepository = benefitSourceRepository;
         this.verificationLogRepository = verificationLogRepository;
+        this.collectionRunRepository = collectionRunRepository;
     }
 
     @Transactional(readOnly = true)
-    public List<BenefitCandidateResponse> getCandidates() {
-        return benefitCandidateRepository.findAllByOrderByIdDesc().stream()
-                .map(BenefitCandidateResponse::from)
+    public List<BenefitCandidateResponse> getCandidates(
+            Long sourceWatchId,
+            Long collectionRunId,
+            BenefitCandidateStatus status,
+            String keyword,
+            Integer limit
+    ) {
+        String normalizedKeyword = normalize(keyword);
+        List<BenefitCandidate> candidates = benefitCandidateRepository.findAllByOrderByIdDesc();
+        Map<Long, Long> collectionRunIdBySnapshotId = getCollectionRunIdBySnapshotId(candidates);
+
+        return candidates.stream()
+                .filter(candidate -> sourceWatchId == null || candidate.getSourceWatch().getId().equals(sourceWatchId))
+                .filter(candidate -> status == null || candidate.getStatus() == status)
+                .filter(candidate -> matchesKeyword(candidate, normalizedKeyword))
+                .filter(candidate -> collectionRunId == null
+                        || collectionRunId.equals(resolveCollectionRunId(candidate, collectionRunIdBySnapshotId)))
+                .limit(normalizeLimit(limit))
+                .map(candidate -> BenefitCandidateResponse.from(
+                        candidate,
+                        resolveCollectionRunId(candidate, collectionRunIdBySnapshotId)
+                ))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public BenefitCandidateResponse getCandidate(Long id) {
-        return BenefitCandidateResponse.from(getCandidateEntity(id));
+        BenefitCandidate candidate = getCandidateEntity(id);
+        Long collectionRunId = resolveCollectionRunId(candidate, getCollectionRunIdBySnapshotId(List.of(candidate)));
+        return BenefitCandidateResponse.from(candidate, collectionRunId);
     }
 
     @Transactional
@@ -63,7 +91,8 @@ public class BenefitCandidateService {
         }
         BenefitCandidate candidate = getCandidateEntity(id);
         candidate.updateStatus(request.status(), request.reviewMemo());
-        return BenefitCandidateResponse.from(candidate);
+        Long collectionRunId = resolveCollectionRunId(candidate, getCollectionRunIdBySnapshotId(List.of(candidate)));
+        return BenefitCandidateResponse.from(candidate, collectionRunId);
     }
 
     @Transactional
@@ -164,6 +193,50 @@ public class BenefitCandidateService {
     private BenefitCandidate getCandidateEntity(Long id) {
         return benefitCandidateRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "BenefitCandidate not found"));
+    }
+
+    private Map<Long, Long> getCollectionRunIdBySnapshotId(List<BenefitCandidate> candidates) {
+        Set<Long> snapshotIds = candidates.stream()
+                .map(candidate -> candidate.getSnapshot().getId())
+                .collect(Collectors.toSet());
+        if (snapshotIds.isEmpty()) {
+            return Map.of();
+        }
+        return collectionRunRepository.findBySnapshotIdIn(snapshotIds).stream()
+                .filter(run -> run.getSnapshotId() != null)
+                .collect(Collectors.toMap(
+                        CollectionRun::getSnapshotId,
+                        CollectionRun::getId,
+                        (existing, ignored) -> existing
+                ));
+    }
+
+    private Long resolveCollectionRunId(BenefitCandidate candidate, Map<Long, Long> collectionRunIdBySnapshotId) {
+        if (candidate.getCollectionRunId() != null) {
+            return candidate.getCollectionRunId();
+        }
+        return collectionRunIdBySnapshotId.get(candidate.getSnapshot().getId());
+    }
+
+    private boolean matchesKeyword(BenefitCandidate candidate, String keyword) {
+        if (keyword == null) {
+            return true;
+        }
+        return contains(candidate.getTitle(), keyword)
+                || contains(candidate.getSummary(), keyword)
+                || contains(candidate.getBrand().getName(), keyword)
+                || contains(candidate.getSourceWatch().getTitle(), keyword);
+    }
+
+    private boolean contains(String value, String keyword) {
+        return value != null && value.toLowerCase(Locale.ROOT).contains(keyword.toLowerCase(Locale.ROOT));
+    }
+
+    private int normalizeLimit(Integer limit) {
+        if (limit == null || limit < 1) {
+            return 100;
+        }
+        return Math.min(limit, 200);
     }
 
     private void validateApprovable(BenefitCandidate candidate) {

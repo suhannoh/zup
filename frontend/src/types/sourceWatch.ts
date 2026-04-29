@@ -2,7 +2,7 @@ import type { SourceType } from "@/types/adminBenefitSource";
 
 export type SourceWatchStatus = "READY" | "SUCCESS" | "FAILED" | "SKIPPED";
 export type CollectionRunStatus = "RUNNING" | "SUCCESS" | "FAILED" | "SKIPPED";
-export type CollectionTriggerType = "MANUAL" | "SCHEDULED";
+export type CollectionTriggerType = "MANUAL" | "SCHEDULED" | "MANUAL_REGENERATE_CANDIDATES";
 
 export type RecentCollectionRunSummary = {
   id: number;
@@ -55,8 +55,10 @@ export type SourceWatchCollectResponse = {
 
 export type SourceWatchRegenerateCandidatesResponse = {
   sourceWatchId: number;
-  snapshotId: number;
+  collectionRunId: number;
+  snapshotId: number | null;
   createdCandidateCount: number;
   skippedDuplicateCount: number;
+  failureReason: string | null;
   message: string;
 };

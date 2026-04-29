@@ -67,18 +67,31 @@ public class BenefitCandidateDetector {
     }
 
     public List<BenefitCandidate> detect(SourceWatch sourceWatch, PageSnapshot snapshot) {
+        return detect(sourceWatch, snapshot, null);
+    }
+
+    public List<BenefitCandidate> detect(SourceWatch sourceWatch, PageSnapshot snapshot, Long collectionRunId) {
         List<BenefitCandidate> createdCandidates = new ArrayList<>();
-        detect(sourceWatch, snapshot, createdCandidates);
+        detect(sourceWatch, snapshot, collectionRunId, createdCandidates);
         return createdCandidates;
     }
 
     public BenefitCandidateDetectionResult detectWithResult(SourceWatch sourceWatch, PageSnapshot snapshot) {
-        return detect(sourceWatch, snapshot, new ArrayList<>());
+        return detectWithResult(sourceWatch, snapshot, null);
+    }
+
+    public BenefitCandidateDetectionResult detectWithResult(
+            SourceWatch sourceWatch,
+            PageSnapshot snapshot,
+            Long collectionRunId
+    ) {
+        return detect(sourceWatch, snapshot, collectionRunId, new ArrayList<>());
     }
 
     private BenefitCandidateDetectionResult detect(
             SourceWatch sourceWatch,
             PageSnapshot snapshot,
+            Long collectionRunId,
             List<BenefitCandidate> createdCandidates
     ) {
         String text = snapshot.getExtractedText();
@@ -115,6 +128,7 @@ public class BenefitCandidateDetector {
                 sourceWatch.getBrand(),
                 sourceWatch,
                 snapshot,
+                collectionRunId,
                 buildTitle(sourceWatch.getBrand().getName(), lowerDetailAndEvidenceText),
                 buildSummary(sourceWatch.getBrand().getName(), benefitDetails, evidenceText),
                 detectBenefitType(lowerDetailAndEvidenceText + " " + lowerText),

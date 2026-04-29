@@ -19,9 +19,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.noh.zup.domain.benefit.BenefitType;
+import com.noh.zup.domain.benefit.BirthdayTimingType;
+import com.noh.zup.domain.benefit.OccasionType;
 import com.noh.zup.domain.brand.Brand;
 import com.noh.zup.domain.brand.BrandRepository;
 import com.noh.zup.domain.category.CategoryRepository;
+import com.noh.zup.domain.collection.BenefitCandidate;
+import com.noh.zup.domain.collection.BenefitCandidateRepository;
+import com.noh.zup.domain.collection.CollectionRun;
+import com.noh.zup.domain.collection.CollectionRunRepository;
 import com.noh.zup.domain.collection.CollectionTriggerType;
 import com.noh.zup.domain.collection.PageSnapshot;
 import com.noh.zup.domain.collection.PageSnapshotRepository;
@@ -31,9 +38,10 @@ import com.noh.zup.domain.collection.fetch.FetchResult;
 import com.noh.zup.domain.collection.fetch.OfficialSourceFetcher;
 import com.noh.zup.domain.collection.scheduler.CollectionLock;
 import com.noh.zup.domain.collection.scheduler.CollectionRedisLock;
+import java.math.BigDecimal;
 import java.time.Duration;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
@@ -83,6 +91,12 @@ class OfficialSourceCollectionApiTest {
 
     @Autowired
     private PageSnapshotRepository pageSnapshotRepository;
+
+    @Autowired
+    private BenefitCandidateRepository benefitCandidateRepository;
+
+    @Autowired
+    private CollectionRunRepository collectionRunRepository;
 
     @MockBean
     private OfficialSourceFetcher officialSourceFetcher;
@@ -433,7 +447,7 @@ class OfficialSourceCollectionApiTest {
     }
 
     @Test
-    void regenerateCandidatesUsesLatestSnapshotWithoutFetchOrCollectionRun() throws Exception {
+    void regenerateCandidatesCreatesCollectionRunAndStoresCollectionRunIdOnCandidates() throws Exception {
         Long brandId = ensureBrand("CJ ONE", "cj-one", "movie-culture");
         Long sourceWatchId = createSourceWatch(brandId, "CJ ONE regenerate page");
         var sourceWatch = sourceWatchRepository.findById(sourceWatchId).orElseThrow();
@@ -444,13 +458,19 @@ class OfficialSourceCollectionApiTest {
                 false
         ));
 
-        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/regenerate-candidates", sourceWatchId))
+        MvcResult regenerateResult = mockMvc.perform(post("/api/v1/admin/source-watches/{id}/regenerate-candidates", sourceWatchId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("candidate regeneration completed"))
                 .andExpect(jsonPath("$.data.sourceWatchId").value(sourceWatchId))
+                .andExpect(jsonPath("$.data.collectionRunId").exists())
                 .andExpect(jsonPath("$.data.snapshotId").value(snapshot.getId()))
                 .andExpect(jsonPath("$.data.createdCandidateCount").value(1))
-                .andExpect(jsonPath("$.data.skippedDuplicateCount").value(0));
+                .andExpect(jsonPath("$.data.skippedDuplicateCount").value(0))
+                .andReturn();
+        long collectionRunId = objectMapper.readTree(regenerateResult.getResponse().getContentAsByteArray())
+                .get("data")
+                .get("collectionRunId")
+                .asLong();
 
         verify(officialSourceFetcher, never()).fetch(anyString());
 
@@ -460,26 +480,50 @@ class OfficialSourceCollectionApiTest {
                 .andExpect(jsonPath("$.data.status").value("NEEDS_REVIEW"))
                 .andExpect(jsonPath("$.data.title").value("CJ ONE 생일축하 10종 쿠폰"))
                 .andExpect(jsonPath("$.data.benefitDetailText").exists())
-                .andExpect(jsonPath("$.data.usageGuideText").exists());
+                .andExpect(jsonPath("$.data.usageGuideText").exists())
+                .andExpect(jsonPath("$.data.collectionRunId").value(collectionRunId));
 
         mockMvc.perform(get("/api/v1/admin/source-watches/{id}/collection-runs", sourceWatchId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", empty()));
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].triggerType").value("MANUAL_REGENERATE_CANDIDATES"))
+                .andExpect(jsonPath("$.data[0].status").value("SUCCESS"))
+                .andExpect(jsonPath("$.data[0].fetched").value(false))
+                .andExpect(jsonPath("$.data[0].snapshotId").value(snapshot.getId()))
+                .andExpect(jsonPath("$.data[0].candidateCount").value(1));
+
+        mockMvc.perform(get("/api/v1/admin/collection-runs?sourceWatchId=" + sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].triggerType").value("MANUAL_REGENERATE_CANDIDATES"));
+
+        mockMvc.perform(get("/api/v1/admin/benefit-candidates?collectionRunId=" + collectionRunId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].id").value(candidateId))
+                .andExpect(jsonPath("$.data[0].collectionRunId").value(collectionRunId));
     }
 
     @Test
-    void regenerateCandidatesFailsWhenLatestSnapshotDoesNotExist() throws Exception {
+    void regenerateCandidatesCreatesSkippedCollectionRunWhenLatestSnapshotDoesNotExist() throws Exception {
         Long brandId = brandRepository.findBySlug("starbucks").orElseThrow().getId();
         Long sourceWatchId = createSourceWatch(brandId, "No snapshot regenerate page");
 
         mockMvc.perform(post("/api/v1/admin/source-watches/{id}/regenerate-candidates", sourceWatchId))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Latest PageSnapshot not found"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.sourceWatchId").value(sourceWatchId))
+                .andExpect(jsonPath("$.data.collectionRunId").exists())
+                .andExpect(jsonPath("$.data.snapshotId").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.failureReason").value("SNAPSHOT_NOT_FOUND"))
+                .andExpect(jsonPath("$.data.message").value("재생성할 스냅샷이 없습니다."));
 
         verify(officialSourceFetcher, never()).fetch(anyString());
         mockMvc.perform(get("/api/v1/admin/source-watches/{id}/collection-runs", sourceWatchId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", empty()));
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].triggerType").value("MANUAL_REGENERATE_CANDIDATES"))
+                .andExpect(jsonPath("$.data[0].status").value("SKIPPED"))
+                .andExpect(jsonPath("$.data[0].failureReason").value("SNAPSHOT_NOT_FOUND"))
+                .andExpect(jsonPath("$.data[0].message").value("재생성할 스냅샷이 없습니다."));
     }
 
     @Test
@@ -499,14 +543,29 @@ class OfficialSourceCollectionApiTest {
                 .andExpect(jsonPath("$.data.createdCandidateCount").value(1))
                 .andExpect(jsonPath("$.data.skippedDuplicateCount").value(0));
 
-        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/regenerate-candidates", sourceWatchId))
+        MvcResult secondRegenerate = mockMvc.perform(post("/api/v1/admin/source-watches/{id}/regenerate-candidates", sourceWatchId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.createdCandidateCount").value(0))
-                .andExpect(jsonPath("$.data.skippedDuplicateCount").value(1));
+                .andExpect(jsonPath("$.data.skippedDuplicateCount").value(1))
+                .andReturn();
+        long secondRunId = objectMapper.readTree(secondRegenerate.getResponse().getContentAsByteArray())
+                .get("data")
+                .get("collectionRunId")
+                .asLong();
 
         mockMvc.perform(get("/api/v1/admin/benefit-candidates"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[?(@.sourceWatchId == " + sourceWatchId + ")]", hasSize(1)));
+
+        mockMvc.perform(get("/api/v1/admin/collection-runs?sourceWatchId=" + sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(2)))
+                .andExpect(jsonPath("$.data[0].triggerType").value("MANUAL_REGENERATE_CANDIDATES"))
+                .andExpect(jsonPath("$.data[0].candidateCount").value(0));
+
+        mockMvc.perform(get("/api/v1/admin/benefit-candidates?collectionRunId=" + secondRunId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", empty()));
     }
 
     @Test
@@ -698,6 +757,205 @@ class OfficialSourceCollectionApiTest {
     }
 
     @Test
+    void collectionRunsListSupportsStatusFailureReasonSourceWatchKeywordAndLimitFilters() throws Exception {
+        when(officialSourceFetcher.fetch(anyString())).thenAnswer(invocation -> {
+            String url = invocation.getArgument(0);
+            if (url.equals("https://robots.example.com/robots.txt")) {
+                return FetchResult.success(200, """
+                        User-agent: *
+                        Disallow: /benefit
+                        """);
+            }
+            if (url.endsWith("/robots.txt")) {
+                return FetchResult.failure(404, "HTTP status 404");
+            }
+            if (url.contains("success.example.com")) {
+                return FetchResult.success(200, birthdayCouponHtml());
+            }
+            if (url.contains("fail.example.com")) {
+                return FetchResult.failure(500, "HTTP status 500");
+            }
+            return FetchResult.success(200, birthdayCouponHtml());
+        });
+
+        Long starbucksBrandId = brandRepository.findBySlug("starbucks").orElseThrow().getId();
+        Long cgvBrandId = brandRepository.findBySlug("cgv").orElseThrow().getId();
+
+        Long successSourceWatchId = createSourceWatch(starbucksBrandId, "Success alpha page", "https://success.example.com/benefit");
+        Long failedSourceWatchId = createSourceWatch(cgvBrandId, "Failed beta page", "https://fail.example.com/benefit");
+        Long skippedSourceWatchId = createSourceWatch(starbucksBrandId, "Robots gamma page", "https://robots.example.com/benefit");
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", successSourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.candidateCount").value(1));
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", failedSourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.failureReason").value("FETCH_FAILED"));
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", skippedSourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.failureReason").value("ROBOTS_TXT_DISALLOWED"));
+
+        mockMvc.perform(get("/api/v1/admin/collection-runs?status=FAILED&keyword=beta"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].sourceWatchId").value(failedSourceWatchId))
+                .andExpect(jsonPath("$.data[0].failureReason").value("FETCH_FAILED"));
+
+        mockMvc.perform(get("/api/v1/admin/collection-runs?failureReason=ROBOTS_TXT_DISALLOWED&keyword=gamma"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].sourceWatchId").value(skippedSourceWatchId))
+                .andExpect(jsonPath("$.data[0].detailReason").value(org.hamcrest.Matchers.containsString("Disallow: /benefit")));
+
+        mockMvc.perform(get("/api/v1/admin/collection-runs?sourceWatchId=" + successSourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].sourceWatchId").value(successSourceWatchId))
+                .andExpect(jsonPath("$.data[0].snapshotId").exists());
+
+        mockMvc.perform(get("/api/v1/admin/collection-runs?keyword=gamma"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].sourceWatchTitle").value("Robots gamma page"));
+
+        mockMvc.perform(get("/api/v1/admin/collection-runs?keyword=alpha&sourceWatchId=" + successSourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].sourceWatchId").value(successSourceWatchId));
+
+        mockMvc.perform(get("/api/v1/admin/collection-runs?limit=2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(2)));
+    }
+
+    @Test
+    void benefitCandidatesSupportSourceWatchAndCollectionRunFilters() throws Exception {
+        when(officialSourceFetcher.fetch(anyString())).thenReturn(FetchResult.success(200, birthdayCouponHtml()));
+        Long starbucksBrandId = brandRepository.findBySlug("starbucks").orElseThrow().getId();
+        Long cgvBrandId = brandRepository.findBySlug("cgv").orElseThrow().getId();
+
+        Long alphaSourceWatchId = createSourceWatch(starbucksBrandId, "Alpha candidate page", "https://alpha.example.com/benefit");
+        Long betaSourceWatchId = createSourceWatch(cgvBrandId, "Beta candidate page", "https://beta.example.com/benefit");
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", alphaSourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.candidateCount").value(1));
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", betaSourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.candidateCount").value(1));
+
+        long alphaCandidateId = getCandidateIdBySourceWatch(alphaSourceWatchId);
+        long betaCandidateId = getCandidateIdBySourceWatch(betaSourceWatchId);
+
+        mockMvc.perform(patch("/api/v1/admin/benefit-candidates/{id}/status", betaCandidateId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("status", "REJECTED"))))
+                .andExpect(status().isOk());
+
+        MvcResult alphaRunResult = mockMvc.perform(get("/api/v1/admin/collection-runs?sourceWatchId=" + alphaSourceWatchId))
+                .andExpect(status().isOk())
+                .andReturn();
+        long alphaRunId = objectMapper.readTree(alphaRunResult.getResponse().getContentAsByteArray())
+                .get("data")
+                .get(0)
+                .get("id")
+                .asLong();
+
+        mockMvc.perform(get("/api/v1/admin/benefit-candidates?sourceWatchId=" + alphaSourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].id").value(alphaCandidateId))
+                .andExpect(jsonPath("$.data[0].sourceWatchTitle").value("Alpha candidate page"))
+                .andExpect(jsonPath("$.data[0].collectionRunId").value(alphaRunId));
+
+        mockMvc.perform(get("/api/v1/admin/benefit-candidates?collectionRunId=" + alphaRunId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].id").value(alphaCandidateId));
+
+        mockMvc.perform(get("/api/v1/admin/benefit-candidates?sourceWatchId=" + betaSourceWatchId + "&status=REJECTED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].id").value(betaCandidateId))
+                .andExpect(jsonPath("$.data[0].status").value("REJECTED"));
+
+        mockMvc.perform(get("/api/v1/admin/benefit-candidates?sourceWatchId=" + alphaSourceWatchId + "&keyword=Alpha"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].id").value(alphaCandidateId));
+    }
+
+    @Test
+    void collectStoresCollectionRunIdDirectlyOnCreatedCandidate() throws Exception {
+        when(officialSourceFetcher.fetch(anyString())).thenReturn(FetchResult.success(200, birthdayCouponHtml()));
+        Long brandId = brandRepository.findBySlug("starbucks").orElseThrow().getId();
+        Long sourceWatchId = createSourceWatch(brandId, "Direct run id page", "https://direct-run.example.com/benefit");
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.candidateCount").value(1));
+
+        long candidateId = getCandidateIdBySourceWatch(sourceWatchId);
+        MvcResult runResult = mockMvc.perform(get("/api/v1/admin/collection-runs?sourceWatchId=" + sourceWatchId))
+                .andExpect(status().isOk())
+                .andReturn();
+        long collectionRunId = objectMapper.readTree(runResult.getResponse().getContentAsByteArray())
+                .get("data")
+                .get(0)
+                .get("id")
+                .asLong();
+
+        BenefitCandidate candidate = benefitCandidateRepository.findById(candidateId).orElseThrow();
+        assertThat(candidate.getCollectionRunId()).isEqualTo(collectionRunId);
+
+        mockMvc.perform(get("/api/v1/admin/benefit-candidates?collectionRunId=" + collectionRunId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].id").value(candidateId))
+                .andExpect(jsonPath("$.data[0].collectionRunId").value(collectionRunId));
+    }
+
+    @Test
+    void benefitCandidatesFallbackToSnapshotCollectionRunIdForLegacyData() throws Exception {
+        Long brandId = brandRepository.findBySlug("cgv").orElseThrow().getId();
+        Long sourceWatchId = createSourceWatch(brandId, "Legacy candidate page", "https://legacy-run.example.com/benefit");
+        var sourceWatch = sourceWatchRepository.findById(sourceWatchId).orElseThrow();
+        PageSnapshot snapshot = pageSnapshotRepository.save(new PageSnapshot(
+                sourceWatch,
+                "legacy-snapshot-hash",
+                extractedBirthdayCouponText(),
+                false
+        ));
+        CollectionRun collectionRun = collectionRunRepository.save(new CollectionRun(sourceWatch, CollectionTriggerType.MANUAL));
+        collectionRun.completeSuccess(false, false, 1, snapshot.getId());
+        collectionRunRepository.save(collectionRun);
+
+        BenefitCandidate legacyCandidate = benefitCandidateRepository.save(new BenefitCandidate(
+                sourceWatch.getBrand(),
+                sourceWatch,
+                snapshot,
+                "Legacy birthday coupon",
+                "Legacy summary",
+                BenefitType.COUPON,
+                OccasionType.BIRTHDAY,
+                BirthdayTimingType.UNKNOWN,
+                true,
+                false,
+                true,
+                "legacy evidence",
+                BigDecimal.valueOf(0.91)
+        ));
+
+        assertThat(legacyCandidate.getCollectionRunId()).isNull();
+
+        mockMvc.perform(get("/api/v1/admin/benefit-candidates?collectionRunId=" + collectionRun.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].id").value(legacyCandidate.getId()))
+                .andExpect(jsonPath("$.data[0].collectionRunId").value(collectionRun.getId()));
+    }
+
+    @Test
     void candidateStatusCanBeChangedButDoesNotAppearInPublicBenefitApi() throws Exception {
         when(officialSourceFetcher.fetch(anyString())).thenReturn(FetchResult.success(200, birthdayCouponHtml()));
         Long brandId = brandRepository.findBySlug("oliveyoung").orElseThrow().getId();
@@ -864,13 +1122,17 @@ class OfficialSourceCollectionApiTest {
     }
 
     private Long createSourceWatch(Long brandId, String title) throws Exception {
+        return createSourceWatch(brandId, title, "https://example.com/official-benefit");
+    }
+
+    private Long createSourceWatch(Long brandId, String title, String url) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/admin/source-watches")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(Map.of(
                                 "brandId", brandId,
                                 "sourceType", "OFFICIAL_HOME",
                                 "title", title,
-                                "url", "https://example.com/official-benefit",
+                                "url", url,
                                 "isActive", true
                         ))))
                 .andExpect(status().isOk())

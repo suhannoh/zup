@@ -63,9 +63,26 @@ Candidate 정제 메모:
 - `BenefitDetailItem`은 Public 카드의 대표 혜택 목록으로 사용되며, Public 화면에는 active item만 표시된다.
 - 브랜드명이 이미지 로고로만 제공되는 상세 항목은 자동 확정하지 않고 비워둔 뒤 관리자가 수동 입력한다.
 - 추출 로직 개선 후 기존 스냅샷을 재분석하려면 `/admin/source-watches`에서 `후보 재생성`을 실행한다.
-- 후보 재생성은 최신 `PageSnapshot.extractedText`를 사용하며 외부 URL fetch와 `CollectionRun` 생성을 하지 않는다.
+- 후보 재생성은 최신 `PageSnapshot.extractedText`를 사용하며 외부 URL fetch는 하지 않는다.
+- 새 수집으로 생성된 `BenefitCandidate`는 `collectionRunId`를 직접 저장한다. 과거 데이터나 재생성 후보처럼 `collectionRunId`가 없는 경우에는 `snapshotId` 기반 fallback으로 추적한다.
+- `/admin/source-watches/{id}/regenerate-candidates`도 `CollectionRun`을 남긴다. 이력에는 `triggerType=MANUAL_REGENERATE_CANDIDATES`, `fetched=false`, 사용한 `snapshotId`, 생성된 후보 수가 기록된다.
 - 재생성된 후보는 `NEEDS_REVIEW` 상태이고, 기존 후보는 자동 삭제/자동 반려하지 않는다.
 - 기존에 길게 생성된 Candidate는 필요하면 `REJECTED` 처리 후 재수집한다.
+
+운영 DB 반영 절차:
+
+1. [20260429_add_collection_run_id_to_benefit_candidates.sql](/Users/suhannoh/Downloads/zup/docs/sql/20260429_add_collection_run_id_to_benefit_candidates.sql)로 `collection_run_id` 컬럼과 인덱스를 반영한다.
+2. 같은 SQL 파일의 `snapshot_id` 중복 점검 쿼리로 자동 backfill 가능 여부를 확인한다.
+3. 중복이 없거나 유일한 `snapshot_id`만 대상으로 safe backfill SQL을 실행한다.
+4. `/admin/benefit-candidates?collectionRunId={runId}` 와 `/admin/collection-runs`에서 `collectionRunId` 추적이 정상인지 확인한다.
+5. 검증 SQL로 null 잔여 건수와 `collection_run_id` 분포를 확인한 뒤 운영 적용을 마무리한다.
+
+주의사항:
+
+- 운영 DB에서는 `ddl-auto=update`에 의존하지 않는다.
+- `snapshot_id` 중복 run이 있으면 자동 backfill하지 말고 수동 검토한다.
+- 후보 재생성 이력까지 기록한 이후에는 동일 `snapshot_id`를 여러 `CollectionRun`이 공유할 수 있다.
+- 기존 데이터는 `snapshotId` fallback이 있으므로 backfill 전에도 화면은 깨지지 않는다.
 
 다음 단계:
 

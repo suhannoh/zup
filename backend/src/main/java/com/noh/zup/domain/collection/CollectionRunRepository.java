@@ -12,9 +12,20 @@ public interface CollectionRunRepository extends JpaRepository<CollectionRun, Lo
 
     List<CollectionRun> findTop50ByOrderByStartedAtDescIdDesc();
 
+    @Query("""
+            select collectionRun
+            from CollectionRun collectionRun
+            join fetch collectionRun.sourceWatch sourceWatch
+            join fetch sourceWatch.brand brand
+            order by collectionRun.startedAt desc, collectionRun.id desc
+            """)
+    List<CollectionRun> findAllDetailedOrderByStartedAtDescIdDesc();
+
     List<CollectionRun> findTop20BySourceWatchIdOrderByStartedAtDescIdDesc(Long sourceWatchId);
 
     List<CollectionRun> findBySourceWatchIdOrderByStartedAtDescIdDesc(Long sourceWatchId, Pageable pageable);
+
+    List<CollectionRun> findBySnapshotIdIn(Collection<Long> snapshotIds);
 
     long countByStatusAndStartedAtGreaterThanEqual(CollectionRunStatus status, LocalDateTime startedAt);
 

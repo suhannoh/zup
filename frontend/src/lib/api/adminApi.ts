@@ -36,9 +36,10 @@ import type {
   BenefitCandidate,
   BenefitCandidateApproveRequest,
   BenefitCandidateApproveResponse,
+  BenefitCandidateSearchParams,
   BenefitCandidateStatus,
 } from "@/types/benefitCandidate";
-import type { CollectionRun } from "@/types/collectionRun";
+import type { CollectionRun, CollectionRunSearchParams } from "@/types/collectionRun";
 import type { SourceWatchCollectionRunHistory } from "@/types/collectionRun";
 
 type AdminReportParams = {
@@ -336,8 +337,10 @@ export async function regenerateSourceWatchCandidates(sourceWatchId: number) {
   return response.data.data;
 }
 
-export async function getBenefitCandidates() {
-  const response = await adminApiClient.get<ApiResponse<BenefitCandidate[]>>("/api/v1/admin/benefit-candidates");
+export async function getBenefitCandidates(params?: BenefitCandidateSearchParams) {
+  const response = await adminApiClient.get<ApiResponse<BenefitCandidate[]>>("/api/v1/admin/benefit-candidates", {
+    params: compactParams(params),
+  });
   return response.data.data;
 }
 
@@ -370,8 +373,10 @@ export async function approveBenefitCandidate(
   return response.data.data;
 }
 
-export async function getCollectionRuns() {
-  const response = await adminApiClient.get<ApiResponse<CollectionRun[]>>("/api/v1/admin/collection-runs");
+export async function getCollectionRuns(params?: CollectionRunSearchParams) {
+  const response = await adminApiClient.get<ApiResponse<CollectionRun[]>>("/api/v1/admin/collection-runs", {
+    params: compactParams(params),
+  });
   return response.data.data;
 }
 

@@ -126,17 +126,51 @@ public class SourceWatchService {
     @Transactional
     public SourceWatchRegenerateCandidatesResponse regenerateCandidates(Long id) {
         SourceWatch sourceWatch = getSourceWatch(id);
-        PageSnapshot snapshot = pageSnapshotRepository.findTopBySourceWatchIdOrderByFetchedAtDescIdDesc(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_REQUEST, "Latest PageSnapshot not found"));
-
-        BenefitCandidateDetectionResult result = benefitCandidateDetector.detectWithResult(sourceWatch, snapshot);
-        return new SourceWatchRegenerateCandidatesResponse(
-                sourceWatch.getId(),
-                snapshot.getId(),
-                result.createdCandidateCount(),
-                result.skippedDuplicateCount(),
-                "candidate regeneration completed"
+        CollectionRun collectionRun = collectionRunRepository.save(
+                new CollectionRun(sourceWatch, CollectionTriggerType.MANUAL_REGENERATE_CANDIDATES)
         );
+        Optional<PageSnapshot> snapshot = pageSnapshotRepository.findTopBySourceWatchIdOrderByFetchedAtDescIdDesc(id);
+        if (snapshot.isEmpty()) {
+            collectionRun.completeSkipped("SNAPSHOT_NOT_FOUND", "재생성할 스냅샷이 없습니다.");
+            return new SourceWatchRegenerateCandidatesResponse(
+                    sourceWatch.getId(),
+                    collectionRun.getId(),
+                    null,
+                    0,
+                    0,
+                    "SNAPSHOT_NOT_FOUND",
+                    "재생성할 스냅샷이 없습니다."
+            );
+        }
+
+        try {
+            BenefitCandidateDetectionResult result = benefitCandidateDetector.detectWithResult(
+                    sourceWatch,
+                    snapshot.get(),
+                    collectionRun.getId()
+            );
+            collectionRun.completeSuccess(false, false, result.createdCandidateCount(), snapshot.get().getId());
+            return new SourceWatchRegenerateCandidatesResponse(
+                    sourceWatch.getId(),
+                    collectionRun.getId(),
+                    snapshot.get().getId(),
+                    result.createdCandidateCount(),
+                    result.skippedDuplicateCount(),
+                    null,
+                    "candidate regeneration completed"
+            );
+        } catch (RuntimeException exception) {
+            collectionRun.completeFailed(false, "UNKNOWN", exception.getMessage());
+            return new SourceWatchRegenerateCandidatesResponse(
+                    sourceWatch.getId(),
+                    collectionRun.getId(),
+                    snapshot.get().getId(),
+                    0,
+                    0,
+                    "UNKNOWN",
+                    "후보 재생성 중 오류가 발생했습니다."
+            );
+        }
     }
 
     @Transactional
@@ -207,7 +241,7 @@ public class SourceWatchService {
 
                 int candidateCount = 0;
                 if (!sameAsPrevious) {
-                    candidateCount = benefitCandidateDetector.detect(sourceWatch, snapshot).size();
+                    candidateCount = benefitCandidateDetector.detect(sourceWatch, snapshot, collectionRun.getId()).size();
                 }
 
                 sourceWatch.markSuccess(contentHash);

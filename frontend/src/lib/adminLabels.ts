@@ -33,12 +33,14 @@ export const COLLECTION_STATUS_CLASS: Record<string, string> = {
 export const TRIGGER_TYPE_LABELS: Record<string, string> = {
   MANUAL: "수동 실행",
   SCHEDULED: "자동 실행",
+  MANUAL_REGENERATE_CANDIDATES: "후보 재생성",
 };
 
 export const COLLECTION_FAILURE_REASON_LABELS: Record<string, string> = {
   SOURCE_WATCH_INACTIVE: "비활성 SourceWatch",
   RATE_LIMITED_BY_DOMAIN: "도메인 최소 수집 간격 미도달",
   COLLECTION_ALREADY_RUNNING: "이미 수집 진행 중",
+  SNAPSHOT_NOT_FOUND: "재생성할 스냅샷 없음",
   FETCH_FAILED: "HTML 수집 실패",
   EXTRACT_FAILED: "본문 추출 실패",
   ROBOTS_TXT_DISALLOWED: "robots.txt 차단",

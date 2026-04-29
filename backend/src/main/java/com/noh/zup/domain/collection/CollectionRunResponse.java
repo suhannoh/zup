@@ -12,16 +12,19 @@ public record CollectionRunResponse(
         CollectionTriggerType triggerType,
         CollectionRunStatus status,
         LocalDateTime startedAt,
-        LocalDateTime endedAt,
+        LocalDateTime finishedAt,
         Long durationMillis,
         Boolean fetched,
         Boolean sameAsPrevious,
         Integer candidateCount,
+        Long snapshotId,
         String failureReason,
-        String errorMessage
+        String message,
+        String detailReason
 ) {
     public static CollectionRunResponse from(CollectionRun run) {
         SourceWatch sourceWatch = run.getSourceWatch();
+        SourceWatchCollectionRunHistoryResponse history = SourceWatchCollectionRunHistoryResponse.from(run);
         return new CollectionRunResponse(
                 run.getId(),
                 sourceWatch.getId(),
@@ -37,8 +40,10 @@ public record CollectionRunResponse(
                 run.getFetched(),
                 run.getSameAsPrevious(),
                 run.getCandidateCount(),
+                run.getSnapshotId(),
                 run.getFailureReason(),
-                run.getErrorMessage()
+                history.message(),
+                history.detailReason()
         );
     }
 }

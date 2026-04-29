@@ -14,6 +14,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
@@ -22,7 +23,12 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "benefit_candidates")
+@Table(
+        name = "benefit_candidates",
+        indexes = {
+                @Index(name = "idx_benefit_candidates_collection_run_id", columnList = "collection_run_id")
+        }
+)
 public class BenefitCandidate extends BaseTimeEntity {
 
     @Id
@@ -40,6 +46,9 @@ public class BenefitCandidate extends BaseTimeEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "snapshot_id", nullable = false)
     private PageSnapshot snapshot;
+
+    @Column(name = "collection_run_id")
+    private Long collectionRunId;
 
     @Column(nullable = false, length = 200)
     private String title;
@@ -118,23 +127,25 @@ public class BenefitCandidate extends BaseTimeEntity {
             String usageGuideText,
             BigDecimal confidence
     ) {
-        this.brand = brand;
-        this.sourceWatch = sourceWatch;
-        this.snapshot = snapshot;
-        this.title = title;
-        this.summary = summary;
-        this.benefitType = benefitType;
-        this.occasionType = occasionType;
-        this.birthdayTimingType = birthdayTimingType;
-        this.requiresApp = requiresApp;
-        this.requiresSignup = requiresSignup;
-        this.requiresMembership = requiresMembership;
-        this.evidenceText = evidenceText;
-        this.benefitDetailText = benefitDetailText;
-        this.benefitDetailImageSources = benefitDetailImageSources;
-        this.usageGuideText = usageGuideText;
-        this.confidence = confidence;
-        this.status = BenefitCandidateStatus.NEEDS_REVIEW;
+        this(
+                brand,
+                sourceWatch,
+                snapshot,
+                null,
+                title,
+                summary,
+                benefitType,
+                occasionType,
+                birthdayTimingType,
+                requiresApp,
+                requiresSignup,
+                requiresMembership,
+                evidenceText,
+                benefitDetailText,
+                benefitDetailImageSources,
+                usageGuideText,
+                confidence
+        );
     }
 
     public BenefitCandidate(
@@ -156,6 +167,80 @@ public class BenefitCandidate extends BaseTimeEntity {
                 brand,
                 sourceWatch,
                 snapshot,
+                null,
+                title,
+                summary,
+                benefitType,
+                occasionType,
+                birthdayTimingType,
+                requiresApp,
+                requiresSignup,
+                requiresMembership,
+                evidenceText,
+                confidence
+        );
+    }
+
+    public BenefitCandidate(
+            Brand brand,
+            SourceWatch sourceWatch,
+            PageSnapshot snapshot,
+            Long collectionRunId,
+            String title,
+            String summary,
+            BenefitType benefitType,
+            OccasionType occasionType,
+            BirthdayTimingType birthdayTimingType,
+            Boolean requiresApp,
+            Boolean requiresSignup,
+            Boolean requiresMembership,
+            String evidenceText,
+            String benefitDetailText,
+            String benefitDetailImageSources,
+            String usageGuideText,
+            BigDecimal confidence
+    ) {
+        this.brand = brand;
+        this.sourceWatch = sourceWatch;
+        this.snapshot = snapshot;
+        this.collectionRunId = collectionRunId;
+        this.title = title;
+        this.summary = summary;
+        this.benefitType = benefitType;
+        this.occasionType = occasionType;
+        this.birthdayTimingType = birthdayTimingType;
+        this.requiresApp = requiresApp;
+        this.requiresSignup = requiresSignup;
+        this.requiresMembership = requiresMembership;
+        this.evidenceText = evidenceText;
+        this.benefitDetailText = benefitDetailText;
+        this.benefitDetailImageSources = benefitDetailImageSources;
+        this.usageGuideText = usageGuideText;
+        this.confidence = confidence;
+        this.status = BenefitCandidateStatus.NEEDS_REVIEW;
+    }
+
+    public BenefitCandidate(
+            Brand brand,
+            SourceWatch sourceWatch,
+            PageSnapshot snapshot,
+            Long collectionRunId,
+            String title,
+            String summary,
+            BenefitType benefitType,
+            OccasionType occasionType,
+            BirthdayTimingType birthdayTimingType,
+            Boolean requiresApp,
+            Boolean requiresSignup,
+            Boolean requiresMembership,
+            String evidenceText,
+            BigDecimal confidence
+    ) {
+        this(
+                brand,
+                sourceWatch,
+                snapshot,
+                collectionRunId,
                 title,
                 summary,
                 benefitType,
@@ -202,6 +287,10 @@ public class BenefitCandidate extends BaseTimeEntity {
 
     public PageSnapshot getSnapshot() {
         return snapshot;
+    }
+
+    public Long getCollectionRunId() {
+        return collectionRunId;
     }
 
     public String getTitle() {

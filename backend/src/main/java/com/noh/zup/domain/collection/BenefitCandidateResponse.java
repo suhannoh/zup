@@ -11,7 +11,9 @@ public record BenefitCandidateResponse(
         Long brandId,
         String brandName,
         Long sourceWatchId,
+        String sourceWatchTitle,
         Long snapshotId,
+        Long collectionRunId,
         String title,
         String summary,
         BenefitType benefitType,
@@ -32,13 +34,15 @@ public record BenefitCandidateResponse(
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
-    public static BenefitCandidateResponse from(BenefitCandidate candidate) {
+    public static BenefitCandidateResponse from(BenefitCandidate candidate, Long collectionRunId) {
         return new BenefitCandidateResponse(
                 candidate.getId(),
                 candidate.getBrand().getId(),
                 candidate.getBrand().getName(),
                 candidate.getSourceWatch().getId(),
+                candidate.getSourceWatch().getTitle(),
                 candidate.getSnapshot().getId(),
+                collectionRunId,
                 candidate.getTitle(),
                 candidate.getSummary(),
                 candidate.getBenefitType(),

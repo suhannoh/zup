@@ -32,7 +32,8 @@ public class AdminBenefitController {
             @RequestParam(required = false) BenefitType benefitType,
             @RequestParam(required = false) BirthdayTimingType birthdayTimingType,
             @RequestParam(required = false) Boolean isActive,
-            @RequestParam(required = false) String keyword
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer limit
     ) {
         return ApiResponse.success(
                 adminBenefitService.getBenefits(
@@ -42,7 +43,8 @@ public class AdminBenefitController {
                         benefitType,
                         birthdayTimingType,
                         isActive,
-                        keyword
+                        keyword,
+                        limit
                 ),
                 "benefits fetched"
         );

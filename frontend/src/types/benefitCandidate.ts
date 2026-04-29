@@ -12,7 +12,9 @@ export type BenefitCandidate = {
   brandId: number;
   brandName: string;
   sourceWatchId: number;
+  sourceWatchTitle: string;
   snapshotId: number;
+  collectionRunId: number | null;
   title: string;
   summary: string;
   benefitType: BenefitType;
@@ -32,6 +34,14 @@ export type BenefitCandidate = {
   approvedAt: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type BenefitCandidateSearchParams = {
+  sourceWatchId?: number;
+  collectionRunId?: number;
+  status?: BenefitCandidateStatus;
+  keyword?: string;
+  limit?: number;
 };
 
 export type BenefitCandidateApproveRequest = {

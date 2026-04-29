@@ -68,7 +68,8 @@ public class AdminBenefitService {
             BenefitType benefitType,
             BirthdayTimingType birthdayTimingType,
             Boolean isActive,
-            String keyword
+            String keyword,
+            Integer limit
     ) {
         String normalizedBrandSlug = normalize(brandSlug);
         String normalizedCategorySlug = normalize(categorySlug);
@@ -90,6 +91,7 @@ public class AdminBenefitService {
                         || benefit.getTitle().toLowerCase(Locale.ROOT).contains(lowerKeyword)
                         || benefit.getSummary().toLowerCase(Locale.ROOT).contains(lowerKeyword)
                         || benefit.getBrand().getName().toLowerCase(Locale.ROOT).contains(lowerKeyword))
+                .limit(normalizeLimit(limit))
                 .map(this::toDetailResponse)
                 .toList();
     }
@@ -283,5 +285,12 @@ public class AdminBenefitService {
             return null;
         }
         return value.trim();
+    }
+
+    private int normalizeLimit(Integer limit) {
+        if (limit == null || limit < 1) {
+            return 200;
+        }
+        return Math.min(limit, 500);
     }
 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { getAdminBenefits, getAdminDashboard } from "@/lib/api/adminApi";
 import type { AdminBenefit } from "@/types/adminBenefit";
 import type { AdminDashboard, CollectionSummary } from "@/types/report";
@@ -60,7 +61,9 @@ export function AdminDashboardPanel() {
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
   const [publishedBenefits, setPublishedBenefits] = useState<AdminBenefit[]>([]);
   const [publishedKeyword, setPublishedKeyword] = useState("");
+  const debouncedPublishedKeyword = useDebouncedValue(publishedKeyword, 300);
   const [loading, setLoading] = useState(true);
+  const [publishedLoading, setPublishedLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -71,13 +74,9 @@ export function AdminDashboardPanel() {
       setError(null);
 
       try {
-        const [data, publishedData] = await Promise.all([
-          getAdminDashboard(),
-          getAdminBenefits({ verificationStatus: "PUBLISHED", isActive: true }),
-        ]);
+        const data = await getAdminDashboard();
         if (active) {
           setDashboard(data);
-          setPublishedBenefits(publishedData);
         }
       } catch {
         if (active) {
@@ -97,17 +96,42 @@ export function AdminDashboardPanel() {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadPublishedBenefits() {
+      setPublishedLoading(true);
+      try {
+        const data = await getAdminBenefits({
+          verificationStatus: "PUBLISHED",
+          isActive: true,
+          keyword: debouncedPublishedKeyword.trim() || undefined,
+          limit: debouncedPublishedKeyword.trim() ? 20 : 5,
+        });
+        if (active) {
+          setPublishedBenefits(data);
+        }
+      } catch {
+        if (active) {
+          setError("대시보드 정보를 불러오지 못했습니다.");
+        }
+      } finally {
+        if (active) {
+          setPublishedLoading(false);
+        }
+      }
+    }
+
+    loadPublishedBenefits();
+
+    return () => {
+      active = false;
+    };
+  }, [debouncedPublishedKeyword]);
+
   const collectionSummary = dashboard?.collectionSummary ?? emptyCollectionSummary;
   const recentFailedRuns = collectionSummary.recentFailedRuns ?? [];
-  const filteredPublishedBenefits = useMemo(() => {
-    const keyword = publishedKeyword.trim().toLowerCase();
-    if (!keyword) {
-      return publishedBenefits.slice(0, 5);
-    }
-    return publishedBenefits.filter((benefit) =>
-      `${benefit.brandName} ${benefit.title}`.toLowerCase().includes(keyword)
-    );
-  }, [publishedBenefits, publishedKeyword]);
+  const filteredPublishedBenefits = useMemo(() => publishedBenefits, [publishedBenefits]);
 
   const operationCards: DashboardCard[] = [
     { label: "전체 수집 URL", value: collectionSummary.totalSourceWatchCount },
@@ -168,9 +192,13 @@ export function AdminDashboardPanel() {
           />
         </div>
         {publishedBenefits.length === 0 ? (
+          publishedLoading ? (
+            <p className="mt-4 rounded-lg bg-neutral-50 p-4 text-sm text-neutral-600">공개 혜택을 불러오는 중입니다.</p>
+          ) : (
           <p className="mt-4 rounded-lg bg-neutral-50 p-4 text-sm text-neutral-600">
             아직 공개 중인 혜택이 없습니다. 후보 검수에서 혜택을 승인하고 공개 전환해 주세요.
           </p>
+          )
         ) : filteredPublishedBenefits.length === 0 ? (
           <p className="mt-4 rounded-lg bg-neutral-50 p-4 text-sm text-neutral-600">검색 결과가 없습니다.</p>
         ) : (

@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   collectSourceWatch,
   createSourceWatch,
@@ -130,6 +131,8 @@ function getRobotsSummary(run: RecentCollectionRunSummary | null) {
 }
 
 export function AdminSourceWatchesPanel() {
+  const searchParams = useSearchParams();
+  const highlightedSourceWatchId = Number(searchParams.get("sourceWatchId") ?? "");
   const [sourceWatches, setSourceWatches] = useState<SourceWatch[]>([]);
   const [brands, setBrands] = useState<AdminBrand[]>([]);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -248,7 +251,12 @@ export function AdminSourceWatchesPanel() {
     try {
       const result = await regenerateSourceWatchCandidates(sourceWatch.id);
       setRegenerateResults((current) => ({ ...current, [sourceWatch.id]: result }));
-      setMessage(`후보 재생성 완료: 신규 ${result.createdCandidateCount}개, 중복 ${result.skippedDuplicateCount}개`);
+      if (result.failureReason) {
+        setMessage(result.message);
+      } else {
+        setMessage(`후보 재생성 완료: 신규 ${result.createdCandidateCount}개, 중복 ${result.skippedDuplicateCount}개`);
+      }
+      setSourceWatches(await getSourceWatches());
     } catch (regenerateError) {
       setError(`후보 재생성 실패: ${getErrorMessage(regenerateError, "최신 스냅샷이 없습니다.")}`);
     } finally {
@@ -324,9 +332,10 @@ export function AdminSourceWatchesPanel() {
     }
   }
 
-  const visibleSourceWatches = showFixtures
-    ? sourceWatches
-    : sourceWatches.filter((sourceWatch) => !isFixtureSourceWatch(sourceWatch));
+  const visibleSourceWatches = useMemo(
+    () => (showFixtures ? sourceWatches : sourceWatches.filter((sourceWatch) => !isFixtureSourceWatch(sourceWatch))),
+    [showFixtures, sourceWatches]
+  );
 
   return (
     <section className="space-y-5">
@@ -398,7 +407,12 @@ export function AdminSourceWatchesPanel() {
           {loading ? <EmptyBox>SourceWatch 목록을 불러오는 중입니다.</EmptyBox> : null}
           {!loading && visibleSourceWatches.length === 0 ? <EmptyBox>표시할 SourceWatch가 없습니다.</EmptyBox> : null}
           {visibleSourceWatches.map((sourceWatch) => (
-            <article key={sourceWatch.id} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+            <article
+              key={sourceWatch.id}
+              className={`rounded-2xl border bg-white p-5 shadow-sm ${
+                highlightedSourceWatchId === sourceWatch.id ? "border-blue-400 ring-2 ring-blue-100" : "border-neutral-200"
+              }`}
+            >
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -448,6 +462,9 @@ export function AdminSourceWatchesPanel() {
                   >
                     {expandedHistoryId === sourceWatch.id ? "이력 접기" : "최근 수집 이력"}
                   </button>
+                  <Link className="h-9 rounded-lg border border-neutral-200 px-3 py-2 text-sm font-semibold" href={`/admin/collection-runs?sourceWatchId=${sourceWatch.id}`}>
+                    전체 이력 보기
+                  </Link>
                 </div>
               </div>
               <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
@@ -561,11 +578,22 @@ export function AdminSourceWatchesPanel() {
                 </div>
               ) : null}
               {regenerateResults[sourceWatch.id] ? (
-                <div className="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-800">
-                  후보 재생성 완료 · 신규: {regenerateResults[sourceWatch.id].createdCandidateCount} · 중복:{" "}
+                <div
+                  className={`mt-4 rounded-lg p-3 text-sm ${
+                    regenerateResults[sourceWatch.id].failureReason
+                      ? "bg-amber-50 text-amber-800"
+                      : "bg-green-50 text-green-800"
+                  }`}
+                >
+                  {regenerateResults[sourceWatch.id].failureReason ? "후보 재생성 건너뜀" : "후보 재생성 완료"} · 신규:{" "}
+                  {regenerateResults[sourceWatch.id].createdCandidateCount} · 중복:{" "}
                   {regenerateResults[sourceWatch.id].skippedDuplicateCount} · snapshotId:{" "}
-                  {regenerateResults[sourceWatch.id].snapshotId}
-                  <Link className="ml-3 font-semibold underline" href="/admin/benefit-candidates">
+                  {regenerateResults[sourceWatch.id].snapshotId ?? "-"} · runId:{" "}
+                  {regenerateResults[sourceWatch.id].collectionRunId}
+                  <Link
+                    className="ml-3 font-semibold underline"
+                    href={`/admin/benefit-candidates?collectionRunId=${regenerateResults[sourceWatch.id].collectionRunId}`}
+                  >
                     후보 목록 보기
                   </Link>
                 </div>

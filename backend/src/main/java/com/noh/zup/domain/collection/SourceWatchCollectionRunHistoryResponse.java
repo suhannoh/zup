@@ -35,6 +35,9 @@ public record SourceWatchCollectionRunHistoryResponse(
 
     private static String buildMessage(CollectionRun run) {
         if (run.getStatus() == CollectionRunStatus.SUCCESS) {
+            if (run.getTriggerType() == CollectionTriggerType.MANUAL_REGENERATE_CANDIDATES) {
+                return "후보 재생성으로 " + run.getCandidateCount() + "개 생성";
+            }
             if (Boolean.TRUE.equals(run.getSameAsPrevious())) {
                 return "동일한 본문이라 후보를 새로 만들지 않았습니다.";
             }
@@ -52,6 +55,7 @@ public record SourceWatchCollectionRunHistoryResponse(
             case "SOURCE_WATCH_INACTIVE" -> "비활성 SourceWatch라 수집을 건너뛰었습니다.";
             case "RATE_LIMITED_BY_DOMAIN" -> "같은 도메인의 최근 수집 이후 최소 수집 간격이 지나지 않았습니다.";
             case "COLLECTION_ALREADY_RUNNING" -> "같은 SourceWatch 수집이 이미 진행 중입니다.";
+            case "SNAPSHOT_NOT_FOUND" -> "재생성할 스냅샷이 없습니다.";
             case "ROBOTS_TXT_DISALLOWED" -> "robots.txt 정책에 의해 수집이 차단되었습니다.";
             case "ROBOTS_TXT_FETCH_FAILED" -> "robots.txt 확인에 실패해 수집을 보류했습니다.";
             case "ROBOTS_TXT_PARSE_FAILED" -> "robots.txt 파싱에 실패해 수집을 보류했습니다.";

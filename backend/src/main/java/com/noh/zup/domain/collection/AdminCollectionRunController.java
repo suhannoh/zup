@@ -19,8 +19,17 @@ public class AdminCollectionRunController {
     }
 
     @GetMapping("/collection-runs")
-    public ApiResponse<List<CollectionRunResponse>> getRecentRuns() {
-        return ApiResponse.success(collectionRunService.getRecentRuns(), "collection runs fetched");
+    public ApiResponse<List<CollectionRunResponse>> getRecentRuns(
+            @RequestParam(required = false) CollectionRunStatus status,
+            @RequestParam(required = false) String failureReason,
+            @RequestParam(required = false) Long sourceWatchId,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer limit
+    ) {
+        return ApiResponse.success(
+                collectionRunService.getRecentRuns(status, failureReason, sourceWatchId, keyword, limit),
+                "collection runs fetched"
+        );
     }
 
     @GetMapping("/source-watches/{id}/collection-runs")

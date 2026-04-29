@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   BIRTHDAY_TIMING_LABELS,
   BIRTHDAY_TIMING_OPTIONS,
@@ -161,6 +162,7 @@ export function AdminBenefitsPanel() {
   const [brands, setBrands] = useState<AdminBrand[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [keyword, setKeyword] = useState("");
+  const debouncedKeyword = useDebouncedValue(keyword, 300);
   const [brandSlug, setBrandSlug] = useState("ALL");
   const [categorySlug, setCategorySlug] = useState("ALL");
   const [verificationStatus, setVerificationStatus] = useState<VerificationStatus | "ALL">("ALL");
@@ -180,7 +182,7 @@ export function AdminBenefitsPanel() {
 
   const params = useMemo(
     () => ({
-      keyword: keyword.trim() || undefined,
+      keyword: debouncedKeyword.trim() || undefined,
       brandSlug: brandSlug === "ALL" ? undefined : brandSlug,
       categorySlug: categorySlug === "ALL" ? undefined : categorySlug,
       verificationStatus:
@@ -202,7 +204,7 @@ export function AdminBenefitsPanel() {
               ? undefined
               : activeFilter === "ACTIVE",
     }),
-    [activeFilter, benefitType, birthdayTimingType, brandSlug, categorySlug, keyword, verificationStatus, visibilityFilter]
+    [activeFilter, benefitType, birthdayTimingType, brandSlug, categorySlug, debouncedKeyword, verificationStatus, visibilityFilter]
   );
 
   async function loadBenefits() {
@@ -427,6 +429,7 @@ export function AdminBenefitsPanel() {
 
       {message ? <Notice tone="success">{message}</Notice> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
+      {keyword !== debouncedKeyword ? <Notice tone="default">검색어를 적용하는 중입니다.</Notice> : null}
 
       <div className="grid gap-5 2xl:grid-cols-[420px_1fr]">
         <BenefitForm
@@ -699,10 +702,12 @@ function EmptyBox({ children }: { children: ReactNode }) {
   return <div className="rounded-lg border border-border bg-white p-8 text-center text-sm text-neutral-600">{children}</div>;
 }
 
-function Notice({ children, tone }: { children: ReactNode; tone: "success" | "error" }) {
+function Notice({ children, tone }: { children: ReactNode; tone: "success" | "error" | "default" }) {
   const className =
     tone === "success"
       ? "border-green-200 bg-green-50 text-green-700"
-      : "border-red-200 bg-red-50 text-red-700";
+      : tone === "error"
+        ? "border-red-200 bg-red-50 text-red-700"
+        : "border-neutral-200 bg-neutral-50 text-neutral-600";
   return <div className={`rounded-lg border p-4 text-sm ${className}`}>{children}</div>;
 }
