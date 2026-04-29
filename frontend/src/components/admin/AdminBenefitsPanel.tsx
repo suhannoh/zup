@@ -34,6 +34,7 @@ import type { AdminBrand } from "@/types/adminBrand";
 import type { Category } from "@/types/category";
 
 type ActiveFilter = "ALL" | "ACTIVE" | "INACTIVE";
+type VisibilityFilter = "ALL" | "PUBLISHED_ACTIVE" | "VERIFIED" | "INACTIVE";
 
 type BenefitFormState = {
   brandId: string;
@@ -166,6 +167,7 @@ export function AdminBenefitsPanel() {
   const [benefitType, setBenefitType] = useState<BenefitType | "ALL">("ALL");
   const [birthdayTimingType, setBirthdayTimingType] = useState<BirthdayTimingType | "ALL">("ALL");
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("ALL");
+  const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilter>("ALL");
   const [form, setForm] = useState<BenefitFormState>(emptyForm);
   const [editingBenefit, setEditingBenefit] = useState<AdminBenefit | null>(null);
   const [statusForms, setStatusForms] = useState<Record<number, StatusFormState>>({});
@@ -181,12 +183,26 @@ export function AdminBenefitsPanel() {
       keyword: keyword.trim() || undefined,
       brandSlug: brandSlug === "ALL" ? undefined : brandSlug,
       categorySlug: categorySlug === "ALL" ? undefined : categorySlug,
-      verificationStatus: verificationStatus === "ALL" ? undefined : verificationStatus,
+      verificationStatus:
+        visibilityFilter === "PUBLISHED_ACTIVE"
+          ? "PUBLISHED"
+          : visibilityFilter === "VERIFIED"
+            ? "VERIFIED"
+            : verificationStatus === "ALL"
+              ? undefined
+              : verificationStatus,
       benefitType: benefitType === "ALL" ? undefined : benefitType,
       birthdayTimingType: birthdayTimingType === "ALL" ? undefined : birthdayTimingType,
-      isActive: activeFilter === "ALL" ? undefined : activeFilter === "ACTIVE",
+      isActive:
+        visibilityFilter === "PUBLISHED_ACTIVE"
+          ? true
+          : visibilityFilter === "INACTIVE"
+            ? false
+            : activeFilter === "ALL"
+              ? undefined
+              : activeFilter === "ACTIVE",
     }),
-    [activeFilter, benefitType, birthdayTimingType, brandSlug, categorySlug, keyword, verificationStatus]
+    [activeFilter, benefitType, birthdayTimingType, brandSlug, categorySlug, keyword, verificationStatus, visibilityFilter]
   );
 
   async function loadBenefits() {
@@ -355,6 +371,12 @@ export function AdminBenefitsPanel() {
       <div className="rounded-lg border border-border bg-white p-4">
         <div className="grid gap-3 lg:grid-cols-4">
           <FilterInput label="검색어" value={keyword} onChange={setKeyword} />
+          <FilterSelect label="운영 보기" value={visibilityFilter} onChange={(value) => setVisibilityFilter(value as VisibilityFilter)}>
+            <option value="ALL">전체</option>
+            <option value="PUBLISHED_ACTIVE">공개 중</option>
+            <option value="VERIFIED">검증 완료</option>
+            <option value="INACTIVE">비활성</option>
+          </FilterSelect>
           <FilterSelect label="브랜드" value={brandSlug} onChange={setBrandSlug}>
             <option value="ALL">전체</option>
             {brands.map((brand) => (
@@ -553,15 +575,22 @@ function BenefitCard({
         <div className="flex gap-2">
           <Link
             className="h-9 rounded-lg border border-border px-3 py-2 text-sm font-semibold"
+            href={`/brands/${benefit.brandSlug}`}
+            target="_blank"
+          >
+            사용자 화면 보기
+          </Link>
+          <Link
+            className="h-9 rounded-lg border border-border px-3 py-2 text-sm font-semibold"
             href={`/admin/benefits/${benefit.id}`}
           >
-            출처/태그/이력 관리
+            수정하기
           </Link>
           <button className="h-9 rounded-lg border border-border px-3 text-sm font-semibold" type="button" onClick={onEdit}>
-            수정
+            빠른 수정
           </button>
           <button className="h-9 rounded-lg border border-border px-3 text-sm font-semibold disabled:opacity-60" type="button" onClick={onActiveToggle} disabled={activeSaving}>
-            {benefit.isActive ? "비활성" : "활성"}
+            공개 상태 변경
           </button>
         </div>
       </div>
@@ -575,6 +604,8 @@ function BenefitCard({
         <Info label="사용 가능 기간" value={benefit.usagePeriodDescription ?? "-"} />
         <Info label="최근 확인일" value={benefit.lastVerifiedAt ?? "-"} />
         <Info label="조건 요약" value={benefit.conditionSummary ?? "-"} />
+        <Info label="대표 혜택 개수" value={String((benefit.detailItems ?? []).filter((item) => item.isActive).length)} />
+        <Info label="공식 출처 개수" value={String((benefit.sources ?? []).length)} />
       </dl>
 
       <form className="mt-5 grid gap-3 rounded-lg border border-border p-4 lg:grid-cols-[160px_160px_1fr_100px]" onSubmit={onStatusSubmit}>
@@ -590,7 +621,7 @@ function BenefitCard({
 }
 
 function FilterInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <TextInput label={label} value={value} onChange={onChange} placeholder="혜택명 또는 요약 검색" />;
+  return <TextInput label={label} value={value} onChange={onChange} placeholder="브랜드명 또는 혜택명 검색" />;
 }
 
 function FilterSelect({

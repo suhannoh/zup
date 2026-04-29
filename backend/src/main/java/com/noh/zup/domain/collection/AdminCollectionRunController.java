@@ -4,6 +4,7 @@ import com.noh.zup.common.response.ApiResponse;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -23,7 +24,13 @@ public class AdminCollectionRunController {
     }
 
     @GetMapping("/source-watches/{id}/collection-runs")
-    public ApiResponse<List<CollectionRunResponse>> getSourceWatchRuns(@PathVariable Long id) {
-        return ApiResponse.success(collectionRunService.getSourceWatchRuns(id), "source watch collection runs fetched");
+    public ApiResponse<List<SourceWatchCollectionRunHistoryResponse>> getSourceWatchRuns(
+            @PathVariable Long id,
+            @RequestParam(required = false) Integer limit
+    ) {
+        return ApiResponse.success(
+                collectionRunService.getSourceWatchRuns(id, limit),
+                "source watch collection runs fetched"
+        );
     }
 }

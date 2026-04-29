@@ -39,6 +39,7 @@ import type {
   BenefitCandidateStatus,
 } from "@/types/benefitCandidate";
 import type { CollectionRun } from "@/types/collectionRun";
+import type { SourceWatchCollectionRunHistory } from "@/types/collectionRun";
 
 type AdminReportParams = {
   status?: ReportStatus;
@@ -374,9 +375,10 @@ export async function getCollectionRuns() {
   return response.data.data;
 }
 
-export async function getSourceWatchCollectionRuns(sourceWatchId: number) {
-  const response = await adminApiClient.get<ApiResponse<CollectionRun[]>>(
-    `/api/v1/admin/source-watches/${sourceWatchId}/collection-runs`
+export async function getSourceWatchCollectionRuns(sourceWatchId: number, limit = 10) {
+  const response = await adminApiClient.get<ApiResponse<SourceWatchCollectionRunHistory[]>>(
+    `/api/v1/admin/source-watches/${sourceWatchId}/collection-runs`,
+    { params: compactParams({ limit }) }
   );
   return response.data.data;
 }

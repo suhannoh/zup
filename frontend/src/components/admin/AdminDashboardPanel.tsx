@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { getAdminDashboard } from "@/lib/api/adminApi";
+import { useEffect, useMemo, useState } from "react";
+import { getAdminBenefits, getAdminDashboard } from "@/lib/api/adminApi";
+import type { AdminBenefit } from "@/types/adminBenefit";
 import type { AdminDashboard, CollectionSummary } from "@/types/report";
 
 type DashboardCard = {
@@ -57,6 +58,8 @@ function formatDateTime(value?: string | null) {
 
 export function AdminDashboardPanel() {
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
+  const [publishedBenefits, setPublishedBenefits] = useState<AdminBenefit[]>([]);
+  const [publishedKeyword, setPublishedKeyword] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,9 +71,13 @@ export function AdminDashboardPanel() {
       setError(null);
 
       try {
-        const data = await getAdminDashboard();
+        const [data, publishedData] = await Promise.all([
+          getAdminDashboard(),
+          getAdminBenefits({ verificationStatus: "PUBLISHED", isActive: true }),
+        ]);
         if (active) {
           setDashboard(data);
+          setPublishedBenefits(publishedData);
         }
       } catch {
         if (active) {
@@ -92,6 +99,15 @@ export function AdminDashboardPanel() {
 
   const collectionSummary = dashboard?.collectionSummary ?? emptyCollectionSummary;
   const recentFailedRuns = collectionSummary.recentFailedRuns ?? [];
+  const filteredPublishedBenefits = useMemo(() => {
+    const keyword = publishedKeyword.trim().toLowerCase();
+    if (!keyword) {
+      return publishedBenefits.slice(0, 5);
+    }
+    return publishedBenefits.filter((benefit) =>
+      `${benefit.brandName} ${benefit.title}`.toLowerCase().includes(keyword)
+    );
+  }, [publishedBenefits, publishedKeyword]);
 
   const operationCards: DashboardCard[] = [
     { label: "전체 수집 URL", value: collectionSummary.totalSourceWatchCount },
@@ -131,11 +147,64 @@ export function AdminDashboardPanel() {
       <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-bold">빠른 작업</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <QuickAction href="/admin/benefit-candidates" title="혜택 후보 검수" description="검수 대기 후보를 확인하고 승인하세요." />
-          <QuickAction href="/admin/benefits" title="혜택 관리" description="승인된 혜택을 수정하고 공개 상태를 관리하세요." />
+          <QuickAction href="/admin/benefit-candidates" title="새 혜택 검수" description="아직 사용자에게 보이지 않는 새 수집 후보를 검수합니다." />
+          <QuickAction href="/admin/benefits" title="공개 혜택 수정" description="사용자 화면에 보이는 혜택 문구, 대표 혜택, 공개 상태를 바로 수정합니다." />
           <QuickAction href="/admin/source-watches" title="공식 출처 수집 관리" description="수집 URL을 등록하고 수집 실행을 관리하세요." />
           <QuickAction href="/admin/collection-runs" title="수집 실행 이력" description="수집 성공, 실패, 스킵 이력을 확인하세요." />
         </div>
+      </section>
+
+      <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold">공개 혜택 바로 수정</h2>
+            <p className="mt-1 text-sm text-neutral-500">사용자 화면에 노출 중인 혜택을 빠르게 찾아 수정합니다.</p>
+          </div>
+          <input
+            className="h-11 w-full max-w-sm rounded-lg border border-neutral-200 bg-white px-3 text-sm"
+            value={publishedKeyword}
+            onChange={(event) => setPublishedKeyword(event.target.value)}
+            placeholder="브랜드명 또는 혜택명 검색"
+          />
+        </div>
+        {publishedBenefits.length === 0 ? (
+          <p className="mt-4 rounded-lg bg-neutral-50 p-4 text-sm text-neutral-600">
+            아직 공개 중인 혜택이 없습니다. 후보 검수에서 혜택을 승인하고 공개 전환해 주세요.
+          </p>
+        ) : filteredPublishedBenefits.length === 0 ? (
+          <p className="mt-4 rounded-lg bg-neutral-50 p-4 text-sm text-neutral-600">검색 결과가 없습니다.</p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {filteredPublishedBenefits.map((benefit) => {
+              const activeDetailItemCount = (benefit.detailItems ?? []).filter((item) => item.isActive).length;
+              return (
+                <article key={benefit.id} className="rounded-xl border border-neutral-200 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-neutral-500">{benefit.brandName}</p>
+                      <h3 className="mt-1 text-base font-bold text-neutral-950">{benefit.title}</h3>
+                      <p className="mt-2 text-sm text-neutral-600">
+                        공개 중 · 활성 · 대표 혜택 {activeDetailItemCount}개 · 최근 확인일 {benefit.lastVerifiedAt ?? "-"}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Link
+                        className="h-9 rounded-lg border border-neutral-200 px-3 py-2 text-sm font-semibold"
+                        href={`/brands/${benefit.brandSlug}`}
+                        target="_blank"
+                      >
+                        사용자 화면 보기
+                      </Link>
+                      <Link className="h-9 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white" href={`/admin/benefits/${benefit.id}`}>
+                        수정하기
+                      </Link>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       <section className="grid gap-5 xl:grid-cols-2">

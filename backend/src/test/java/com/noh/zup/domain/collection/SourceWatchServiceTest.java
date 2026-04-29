@@ -66,7 +66,7 @@ class SourceWatchServiceTest {
         SourceWatch recentSourceWatch = mock(SourceWatch.class);
         when(recentSourceWatch.getUrl()).thenReturn("https://m.cjone.com/cjmmobile/benefit");
         CollectionRun recentRun = new CollectionRun(recentSourceWatch, CollectionTriggerType.MANUAL);
-        recentRun.completeSuccess(true, false, 1);
+        recentRun.completeSuccess(true, false, 1, 1L);
         when(collectionRunRepository.findRecentByStatuses(any(), any())).thenReturn(List.of(recentRun));
 
         SourceWatchCollectResponse response = sourceWatchService.collect(1L, CollectionTriggerType.MANUAL);

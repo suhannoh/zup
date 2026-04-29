@@ -88,7 +88,8 @@ public class AdminBenefitService {
                 .filter(benefit -> isActive == null || benefit.getIsActive().equals(isActive))
                 .filter(benefit -> lowerKeyword == null
                         || benefit.getTitle().toLowerCase(Locale.ROOT).contains(lowerKeyword)
-                        || benefit.getSummary().toLowerCase(Locale.ROOT).contains(lowerKeyword))
+                        || benefit.getSummary().toLowerCase(Locale.ROOT).contains(lowerKeyword)
+                        || benefit.getBrand().getName().toLowerCase(Locale.ROOT).contains(lowerKeyword))
                 .map(this::toDetailResponse)
                 .toList();
     }

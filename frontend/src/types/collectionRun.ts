@@ -20,3 +20,18 @@ export type CollectionRun = {
   failureReason: string | null;
   errorMessage: string | null;
 };
+
+export type SourceWatchCollectionRunHistory = {
+  id: number;
+  triggerType: CollectionTriggerType;
+  status: CollectionRunStatus;
+  failureReason: string | null;
+  fetched: boolean;
+  sameAsPrevious: boolean;
+  candidateCount: number;
+  snapshotId: number | null;
+  startedAt: string;
+  finishedAt: string | null;
+  message: string;
+  detailReason: string | null;
+};

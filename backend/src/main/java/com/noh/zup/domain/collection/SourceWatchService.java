@@ -211,8 +211,8 @@ public class SourceWatchService {
                 }
 
                 sourceWatch.markSuccess(contentHash);
-                collectionRun.completeSuccess(true, sameAsPrevious, candidateCount);
-                return new SourceWatchCollectResponse(id, true, sameAsPrevious, candidateCount, null, "collection completed");
+            collectionRun.completeSuccess(true, sameAsPrevious, candidateCount, snapshot.getId());
+            return new SourceWatchCollectResponse(id, true, sameAsPrevious, candidateCount, null, "collection completed");
             } catch (RuntimeException exception) {
                 sourceWatch.markFailed();
                 collectionRun.completeFailed(false, "UNKNOWN", exception.getMessage());

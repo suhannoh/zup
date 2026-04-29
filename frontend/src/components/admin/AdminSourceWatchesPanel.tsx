@@ -6,6 +6,7 @@ import {
   collectSourceWatch,
   createSourceWatch,
   getAdminBrands,
+  getSourceWatchCollectionRuns,
   getSourceWatches,
   regenerateSourceWatchCandidates,
   updateSourceWatch,
@@ -15,6 +16,7 @@ import { COLLECTION_FAILURE_REASON_LABELS, COLLECTION_STATUS_CLASS, COLLECTION_S
 import { SOURCE_TYPE_LABELS, SOURCE_TYPE_OPTIONS } from "@/lib/sourceLabels";
 import type { SourceType } from "@/types/adminBenefitSource";
 import type { AdminBrand } from "@/types/adminBrand";
+import type { SourceWatchCollectionRunHistory } from "@/types/collectionRun";
 import type {
   RecentCollectionRunSummary,
   SourceWatch,
@@ -142,6 +144,10 @@ export function AdminSourceWatchesPanel() {
   const [error, setError] = useState<string | null>(null);
   const [collectResults, setCollectResults] = useState<Record<number, SourceWatchCollectResponse>>({});
   const [regenerateResults, setRegenerateResults] = useState<Record<number, SourceWatchRegenerateCandidatesResponse>>({});
+  const [expandedHistoryId, setExpandedHistoryId] = useState<number | null>(null);
+  const [historyLoadingId, setHistoryLoadingId] = useState<number | null>(null);
+  const [historyRuns, setHistoryRuns] = useState<Record<number, SourceWatchCollectionRunHistory[]>>({});
+  const [historyErrors, setHistoryErrors] = useState<Record<number, string>>({});
 
   async function loadAll() {
     setLoading(true);
@@ -247,6 +253,36 @@ export function AdminSourceWatchesPanel() {
       setError(`후보 재생성 실패: ${getErrorMessage(regenerateError, "최신 스냅샷이 없습니다.")}`);
     } finally {
       setRegeneratingId(null);
+    }
+  }
+
+  async function handleToggleHistory(sourceWatchId: number) {
+    if (expandedHistoryId === sourceWatchId) {
+      setExpandedHistoryId(null);
+      return;
+    }
+
+    setExpandedHistoryId(sourceWatchId);
+    if (historyRuns[sourceWatchId] || historyLoadingId === sourceWatchId) {
+      return;
+    }
+
+    setHistoryLoadingId(sourceWatchId);
+    setHistoryErrors((current) => {
+      const next = { ...current };
+      delete next[sourceWatchId];
+      return next;
+    });
+    try {
+      const runs = await getSourceWatchCollectionRuns(sourceWatchId, 10);
+      setHistoryRuns((current) => ({ ...current, [sourceWatchId]: runs }));
+    } catch (historyError) {
+      setHistoryErrors((current) => ({
+        ...current,
+        [sourceWatchId]: getErrorMessage(historyError, "최근 수집 이력을 불러오지 못했습니다."),
+      }));
+    } finally {
+      setHistoryLoadingId(null);
     }
   }
 
@@ -405,6 +441,13 @@ export function AdminSourceWatchesPanel() {
                   <Link className="h-9 rounded-lg border border-neutral-200 px-3 py-2 text-sm font-semibold" href="/admin/collection-runs">
                     최근 수집 이력 보기
                   </Link>
+                  <button
+                    className="h-9 rounded-lg border border-neutral-200 px-3 text-sm font-semibold"
+                    type="button"
+                    onClick={() => handleToggleHistory(sourceWatch.id)}
+                  >
+                    {expandedHistoryId === sourceWatch.id ? "이력 접기" : "최근 수집 이력"}
+                  </button>
                 </div>
               </div>
               <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
@@ -472,6 +515,49 @@ export function AdminSourceWatchesPanel() {
                       {String(collectResults[sourceWatch.id].sameAsPrevious)}
                     </>
                   )}
+                </div>
+              ) : null}
+              {expandedHistoryId === sourceWatch.id ? (
+                <div className="mt-4 rounded-xl border border-neutral-200 bg-white p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h4 className="text-sm font-semibold text-neutral-900">최근 수집 이력</h4>
+                    <span className="text-xs text-neutral-500">최근 10건</span>
+                  </div>
+                  {historyLoadingId === sourceWatch.id ? (
+                    <p className="mt-3 text-sm text-neutral-500">최근 수집 이력을 불러오는 중입니다.</p>
+                  ) : null}
+                  {historyErrors[sourceWatch.id] ? (
+                    <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{historyErrors[sourceWatch.id]}</p>
+                  ) : null}
+                  {!historyLoadingId && !historyErrors[sourceWatch.id] && (historyRuns[sourceWatch.id]?.length ?? 0) === 0 ? (
+                    <p className="mt-3 text-sm text-neutral-500">표시할 수집 이력이 없습니다.</p>
+                  ) : null}
+                  {!historyLoadingId && !historyErrors[sourceWatch.id] && historyRuns[sourceWatch.id]?.length ? (
+                    <div className="mt-3 space-y-3">
+                      {historyRuns[sourceWatch.id].map((run) => (
+                        <article key={run.id} className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${COLLECTION_STATUS_CLASS[run.status] ?? "bg-neutral-100 text-neutral-700"}`}>
+                              {COLLECTION_STATUS_LABELS[run.status] ?? run.status}
+                            </span>
+                            <span className="text-sm font-semibold text-neutral-800">
+                              {run.failureReason ? getFailureReasonLabel(run.failureReason) : run.message}
+                            </span>
+                          </div>
+                          <div className="mt-2 grid gap-2 text-xs text-neutral-500 md:grid-cols-3">
+                            <p>{formatDateTime(run.startedAt)}</p>
+                            <p>후보 {run.candidateCount ?? 0}개</p>
+                            <p>{run.snapshotId ? `snapshotId=${run.snapshotId}` : "snapshot 없음"}</p>
+                          </div>
+                          {run.failureReason || run.detailReason ? (
+                            <p className="mt-2 text-xs leading-5 text-neutral-600">
+                              {run.detailReason ?? run.message}
+                            </p>
+                          ) : null}
+                        </article>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
               {regenerateResults[sourceWatch.id] ? (

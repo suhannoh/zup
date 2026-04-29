@@ -14,6 +14,8 @@ public interface CollectionRunRepository extends JpaRepository<CollectionRun, Lo
 
     List<CollectionRun> findTop20BySourceWatchIdOrderByStartedAtDescIdDesc(Long sourceWatchId);
 
+    List<CollectionRun> findBySourceWatchIdOrderByStartedAtDescIdDesc(Long sourceWatchId, Pageable pageable);
+
     long countByStatusAndStartedAtGreaterThanEqual(CollectionRunStatus status, LocalDateTime startedAt);
 
     List<CollectionRun> findTop5ByStatusAndStartedAtGreaterThanEqualOrderByStartedAtDescIdDesc(

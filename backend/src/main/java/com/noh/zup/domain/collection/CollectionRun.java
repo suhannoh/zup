@@ -53,6 +53,8 @@ public class CollectionRun extends BaseTimeEntity {
     @Column(nullable = false)
     private Integer candidateCount = 0;
 
+    private Long snapshotId;
+
     @Column(length = 100)
     private String failureReason;
 
@@ -69,11 +71,12 @@ public class CollectionRun extends BaseTimeEntity {
         this.startedAt = LocalDateTime.now();
     }
 
-    public void completeSuccess(Boolean fetched, Boolean sameAsPrevious, Integer candidateCount) {
+    public void completeSuccess(Boolean fetched, Boolean sameAsPrevious, Integer candidateCount, Long snapshotId) {
         this.status = CollectionRunStatus.SUCCESS;
         this.fetched = fetched;
         this.sameAsPrevious = sameAsPrevious;
         this.candidateCount = candidateCount;
+        this.snapshotId = snapshotId;
         this.failureReason = null;
         this.errorMessage = null;
         complete();
@@ -84,6 +87,7 @@ public class CollectionRun extends BaseTimeEntity {
         this.fetched = false;
         this.sameAsPrevious = false;
         this.candidateCount = 0;
+        this.snapshotId = null;
         this.failureReason = failureReason;
         this.errorMessage = truncate(errorMessage);
         complete();
@@ -94,6 +98,7 @@ public class CollectionRun extends BaseTimeEntity {
         this.fetched = fetched;
         this.sameAsPrevious = false;
         this.candidateCount = 0;
+        this.snapshotId = null;
         this.failureReason = failureReason;
         this.errorMessage = truncate(errorMessage);
         complete();
@@ -149,6 +154,10 @@ public class CollectionRun extends BaseTimeEntity {
 
     public Integer getCandidateCount() {
         return candidateCount;
+    }
+
+    public Long getSnapshotId() {
+        return snapshotId;
     }
 
     public String getFailureReason() {

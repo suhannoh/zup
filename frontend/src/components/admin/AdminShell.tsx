@@ -105,8 +105,8 @@ const navItems = [
     {href: "/admin", label: "대시보드", icon: DashboardIcon},
     {href: "/admin/brands", label: "브랜드 관리", icon: BrandIcon},
     {href: "/admin/source-watches", label: "공식 출처 수집", icon: SourceIcon},
-    {href: "/admin/benefit-candidates", label: "혜택 후보 검수", icon: CandidateIcon},
-    {href: "/admin/benefits", label: "혜택 관리", icon: BenefitIcon},
+    {href: "/admin/benefit-candidates", label: "새 혜택 검수", icon: CandidateIcon},
+    {href: "/admin/benefits", label: "공개 혜택 관리", icon: BenefitIcon},
     {href: "/admin/collection-runs", label: "수집 이력", icon: HistoryIcon},
     {href: "/admin/reports", label: "제보 관리", icon: ReportIcon},
 ];

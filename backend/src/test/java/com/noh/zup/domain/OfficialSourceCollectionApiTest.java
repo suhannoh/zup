@@ -147,7 +147,8 @@ class OfficialSourceCollectionApiTest {
                 .andExpect(jsonPath("$.data[0].fetched").value(true))
                 .andExpect(jsonPath("$.data[0].sameAsPrevious").value(false))
                 .andExpect(jsonPath("$.data[0].candidateCount").value(1))
-                .andExpect(jsonPath("$.data[0].durationMillis").exists());
+                .andExpect(jsonPath("$.data[0].snapshotId").exists())
+                .andExpect(jsonPath("$.data[0].message").value("후보 1개 생성"));
     }
 
     @Test
@@ -393,7 +394,42 @@ class OfficialSourceCollectionApiTest {
         mockMvc.perform(get("/api/v1/admin/source-watches/{id}/collection-runs", sourceWatchId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].status").value("SKIPPED"))
-                .andExpect(jsonPath("$.data[0].failureReason").value("COLLECTION_ALREADY_RUNNING"));
+                .andExpect(jsonPath("$.data[0].failureReason").value("COLLECTION_ALREADY_RUNNING"))
+                .andExpect(jsonPath("$.data[0].message").value("같은 SourceWatch 수집이 이미 진행 중입니다."));
+    }
+
+    @Test
+    void sourceWatchCollectionRunsSupportDefaultAndMaxLimitAndStayScoped() throws Exception {
+        when(officialSourceFetcher.fetch(anyString())).thenReturn(FetchResult.success(200, birthdayCouponHtml()));
+        Long brandId = brandRepository.findBySlug("outback").orElseThrow().getId();
+        Long sourceWatchId = createSourceWatch(brandId, "History scoped page");
+        Long otherSourceWatchId = createSourceWatch(brandId, "Other history page");
+
+        for (int index = 0; index < 21; index++) {
+          mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", sourceWatchId))
+                  .andExpect(status().isOk());
+        }
+
+        mockMvc.perform(patch("/api/v1/admin/source-watches/{id}/active", otherSourceWatchId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("isActive", false))))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", otherSourceWatchId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/admin/source-watches/{id}/collection-runs", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(10)));
+
+        mockMvc.perform(get("/api/v1/admin/source-watches/{id}/collection-runs?limit=100", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(20)));
+
+        mockMvc.perform(get("/api/v1/admin/source-watches/{id}/collection-runs?limit=3", otherSourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].failureReason").value("SOURCE_WATCH_INACTIVE"))
+                .andExpect(jsonPath("$.data[0].message").value("비활성 SourceWatch라 수집을 건너뛰었습니다."));
     }
 
     @Test
@@ -527,7 +563,7 @@ class OfficialSourceCollectionApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].status").value("FAILED"))
                 .andExpect(jsonPath("$.data[0].failureReason").value("FETCH_FAILED"))
-                .andExpect(jsonPath("$.data[0].errorMessage").value("HTTP status 500"));
+                .andExpect(jsonPath("$.data[0].detailReason").value("HTTP status 500"));
     }
 
     @Test
@@ -555,7 +591,7 @@ class OfficialSourceCollectionApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].status").value("SKIPPED"))
                 .andExpect(jsonPath("$.data[0].failureReason").value("ROBOTS_TXT_DISALLOWED"))
-                .andExpect(jsonPath("$.data[0].errorMessage").value(org.hamcrest.Matchers.containsString("Disallow: /official-benefit")));
+                .andExpect(jsonPath("$.data[0].detailReason").value(org.hamcrest.Matchers.containsString("Disallow: /official-benefit")));
     }
 
     @Test

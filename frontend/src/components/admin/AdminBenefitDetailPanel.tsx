@@ -417,8 +417,22 @@ export function AdminBenefitDetailPanel({ benefitId }: { benefitId: number }) {
             <h1 className="text-2xl font-bold text-neutral-950">혜택 관리 / 상세 수정</h1>
             <p className="mt-1 text-sm text-neutral-600">승인된 혜택의 상세 리스트, 공식 출처, 공개 상태를 관리합니다.</p>
           </div>
-          <StatusPill status={VERIFICATION_STATUS_LABELS[benefit.verificationStatus] ?? benefit.verificationStatus ?? "-"} />
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
+              href={`/brands/${benefit.brandSlug}`}
+              target="_blank"
+            >
+              사용자 화면에서 보기
+            </Link>
+            <StatusPill status={VERIFICATION_STATUS_LABELS[benefit.verificationStatus] ?? benefit.verificationStatus ?? "-"} />
+          </div>
         </div>
+        <p className={`mt-3 rounded-lg p-3 text-sm leading-6 ${benefit.verificationStatus === "PUBLISHED" ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-800"}`}>
+          {benefit.verificationStatus === "PUBLISHED"
+            ? "이 혜택은 공개 중이며 사용자 화면에 표시됩니다."
+            : "현재 혜택은 검증 완료 상태입니다. 공개 전환 전까지 사용자 화면에는 표시되지 않습니다."}
+        </p>
       </div>
 
       {message ? <Notice tone="success">{message}</Notice> : null}
