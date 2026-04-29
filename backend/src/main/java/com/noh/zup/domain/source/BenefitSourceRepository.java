@@ -10,4 +10,6 @@ public interface BenefitSourceRepository extends JpaRepository<BenefitSource, Lo
     List<BenefitSource> findAllByBenefitIdAndIsActiveTrue(Long benefitId);
 
     List<BenefitSource> findAllBySourceType(SourceType sourceType);
+
+    long countByBenefitId(Long benefitId);
 }

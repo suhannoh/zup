@@ -7,7 +7,7 @@ import type {
 
 export type BenefitCandidateStatus = "DETECTED" | "NEEDS_REVIEW" | "APPROVED" | "REJECTED";
 
-export type BenefitCandidate = {
+export type BenefitCandidateDetail = {
   id: number;
   brandId: number;
   brandName: string;
@@ -39,6 +39,27 @@ export type BenefitCandidate = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type BenefitCandidateSummary = {
+  id: number;
+  title: string;
+  brandId: number;
+  brandName: string;
+  status: BenefitCandidateStatus;
+  confidence: number;
+  sourceWatchId: number;
+  sourceWatchTitle: string;
+  collectionRunId: number | null;
+  snapshotId: number;
+  createdAt: string;
+  benefitType: BenefitType;
+  applicableTiming: OccasionType;
+  needsManualReview: boolean;
+  warningCount: number;
+  excludedTextCount: number;
+};
+
+export type BenefitCandidate = BenefitCandidateDetail;
 
 export type BenefitCandidateSearchParams = {
   sourceWatchId?: number;

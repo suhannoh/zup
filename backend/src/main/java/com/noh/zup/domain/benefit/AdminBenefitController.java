@@ -25,7 +25,7 @@ public class AdminBenefitController {
     }
 
     @GetMapping("/benefits")
-    public ApiResponse<List<BenefitDetailResponse>> getBenefits(
+    public ApiResponse<List<BenefitSummaryResponse>> getBenefits(
             @RequestParam(required = false) String brandSlug,
             @RequestParam(required = false) String categorySlug,
             @RequestParam(required = false) VerificationStatus verificationStatus,

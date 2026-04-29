@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { getAdminBenefits, getAdminDashboard, getSourceWatches } from "@/lib/api/adminApi";
-import type { AdminBenefit } from "@/types/adminBenefit";
+import type { AdminBenefitSummary } from "@/types/adminBenefit";
 import type { AdminDashboard, CollectionSummary } from "@/types/report";
 import type { SourceWatch } from "@/types/sourceWatch";
 
@@ -60,7 +60,7 @@ function formatDateTime(value?: string | null) {
 
 export function AdminDashboardPanel() {
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
-  const [publishedBenefits, setPublishedBenefits] = useState<AdminBenefit[]>([]);
+  const [publishedBenefits, setPublishedBenefits] = useState<AdminBenefitSummary[]>([]);
   const [sourceWatches, setSourceWatches] = useState<SourceWatch[]>([]);
   const [publishedKeyword, setPublishedKeyword] = useState("");
   const debouncedPublishedKeyword = useDebouncedValue(publishedKeyword, 300);
@@ -258,7 +258,6 @@ export function AdminDashboardPanel() {
         ) : (
           <div className="mt-4 space-y-3">
             {filteredPublishedBenefits.map((benefit) => {
-              const activeDetailItemCount = (benefit.detailItems ?? []).filter((item) => item.isActive).length;
               return (
                 <article key={benefit.id} className="rounded-xl border border-neutral-200 p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -266,7 +265,7 @@ export function AdminDashboardPanel() {
                       <p className="text-sm font-semibold text-neutral-500">{benefit.brandName}</p>
                       <h3 className="mt-1 text-base font-bold text-neutral-950">{benefit.title}</h3>
                       <p className="mt-2 text-sm text-neutral-600">
-                        공개 중 · 활성 · 대표 혜택 {activeDetailItemCount}개 · 최근 확인일 {benefit.lastVerifiedAt ?? "-"}
+                        공개 중 · 활성 · 대표 혜택 {benefit.detailItemCount}개 · 최근 확인일 {benefit.lastVerifiedAt ?? "-"}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">

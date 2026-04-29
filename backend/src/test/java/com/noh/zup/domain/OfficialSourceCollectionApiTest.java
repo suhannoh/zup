@@ -153,6 +153,19 @@ class OfficialSourceCollectionApiTest {
                 .andExpect(jsonPath("$.data.status").value("NEEDS_REVIEW"))
                 .andExpect(jsonPath("$.data.occasionType").value("BIRTHDAY"));
 
+        mockMvc.perform(get("/api/v1/admin/benefit-candidates?sourceWatchId=" + sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].id").value(candidateId))
+                .andExpect(jsonPath("$.data[0].applicableTiming").value("BIRTHDAY"))
+                .andExpect(jsonPath("$.data[0].warningCount").exists())
+                .andExpect(jsonPath("$.data[0].excludedTextCount").exists())
+                .andExpect(jsonPath("$.data[0].evidenceText").doesNotExist())
+                .andExpect(jsonPath("$.data[0].benefitDetailText").doesNotExist())
+                .andExpect(jsonPath("$.data[0].usageGuideText").doesNotExist())
+                .andExpect(jsonPath("$.data[0].excludedTexts").doesNotExist())
+                .andExpect(jsonPath("$.data[0].extractionWarnings").doesNotExist());
+
         mockMvc.perform(get("/api/v1/admin/source-watches/{id}/collection-runs", sourceWatchId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("source watch collection runs fetched"))

@@ -23,7 +23,7 @@ public class AdminBenefitCandidateController {
     }
 
     @GetMapping
-    public ApiResponse<List<BenefitCandidateResponse>> getCandidates(
+    public ApiResponse<List<BenefitCandidateSummaryResponse>> getCandidates(
             @RequestParam(required = false) Long sourceWatchId,
             @RequestParam(required = false) Long collectionRunId,
             @RequestParam(required = false) BenefitCandidateStatus status,

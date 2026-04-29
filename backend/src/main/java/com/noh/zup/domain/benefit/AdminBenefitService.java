@@ -63,7 +63,7 @@ public class AdminBenefitService {
     }
 
     @Transactional(readOnly = true)
-    public List<BenefitDetailResponse> getBenefits(
+    public List<BenefitSummaryResponse> getBenefits(
             String brandSlug,
             String categorySlug,
             VerificationStatus verificationStatus,
@@ -94,7 +94,7 @@ public class AdminBenefitService {
                         || benefit.getSummary().toLowerCase(Locale.ROOT).contains(lowerKeyword)
                         || benefit.getBrand().getName().toLowerCase(Locale.ROOT).contains(lowerKeyword))
                 .limit(normalizeLimit(limit))
-                .map(this::toDetailResponse)
+                .map(this::toSummaryResponse)
                 .toList();
     }
 
@@ -320,6 +320,15 @@ public class AdminBenefitService {
                 benefitDetailItemRepository.findAllByBenefitIdOrderByDisplayOrderAscIdAsc(benefit.getId()).stream()
                         .map(BenefitDetailItemResponse::from)
                         .toList()
+        );
+    }
+
+    private BenefitSummaryResponse toSummaryResponse(Benefit benefit) {
+        return BenefitSummaryResponse.of(
+                benefit,
+                benefitDetailItemRepository.countByBenefitId(benefit.getId()),
+                benefitSourceRepository.countByBenefitId(benefit.getId()),
+                benefitTagRepository.countByBenefitId(benefit.getId())
         );
     }
 

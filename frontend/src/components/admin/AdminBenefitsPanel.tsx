@@ -16,6 +16,7 @@ import {
 } from "@/lib/benefitLabels";
 import {
   createAdminBenefit,
+  getAdminBenefit,
   getAdminBenefits,
   getAdminBrands,
   updateAdminBenefit,
@@ -26,6 +27,7 @@ import { getCategories } from "@/lib/api/publicApi";
 import type {
   AdminBenefit,
   AdminBenefitCreateRequest,
+  AdminBenefitSummary,
   BenefitType,
   BirthdayTimingType,
   OccasionType,
@@ -149,7 +151,7 @@ function toFormState(benefit: AdminBenefit): BenefitFormState {
   };
 }
 
-function buildStatusForm(benefit: AdminBenefit): StatusFormState {
+function buildStatusForm(benefit: Pick<AdminBenefitSummary, "verificationStatus" | "lastVerifiedAt">): StatusFormState {
   return {
     verificationStatus: benefit.verificationStatus,
     lastVerifiedAt: benefit.lastVerifiedAt ?? "",
@@ -158,7 +160,7 @@ function buildStatusForm(benefit: AdminBenefit): StatusFormState {
 }
 
 export function AdminBenefitsPanel() {
-  const [benefits, setBenefits] = useState<AdminBenefit[]>([]);
+  const [benefits, setBenefits] = useState<AdminBenefitSummary[]>([]);
   const [brands, setBrands] = useState<AdminBrand[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [keyword, setKeyword] = useState("");
@@ -275,11 +277,16 @@ export function AdminBenefitsPanel() {
     setForm(emptyForm);
   }
 
-  function startEdit(benefit: AdminBenefit) {
-    setEditingBenefit(benefit);
-    setForm(toFormState(benefit));
+  async function startEdit(benefit: AdminBenefitSummary) {
     setMessage(null);
     setError(null);
+    try {
+      const detail = await getAdminBenefit(benefit.id);
+      setEditingBenefit(detail);
+      setForm(toFormState(detail));
+    } catch {
+      setError("혜택 상세 정보를 불러오지 못했습니다.");
+    }
   }
 
   function validateForm() {
@@ -325,7 +332,7 @@ export function AdminBenefitsPanel() {
     }));
   }
 
-  async function handleStatusSubmit(event: FormEvent<HTMLFormElement>, benefit: AdminBenefit) {
+  async function handleStatusSubmit(event: FormEvent<HTMLFormElement>, benefit: AdminBenefitSummary) {
     event.preventDefault();
     const current = statusForms[benefit.id] ?? buildStatusForm(benefit);
     setStatusSavingId(benefit.id);
@@ -333,13 +340,12 @@ export function AdminBenefitsPanel() {
     setError(null);
 
     try {
-      const updated = await updateAdminBenefitStatus(benefit.id, {
+      await updateAdminBenefitStatus(benefit.id, {
         verificationStatus: current.verificationStatus,
         lastVerifiedAt: normalizeOptional(current.lastVerifiedAt),
         memo: normalizeOptional(current.memo),
       });
-      setBenefits((items) => items.map((item) => (item.id === updated.id ? updated : item)));
-      setStatusForms((items) => ({ ...items, [updated.id]: buildStatusForm(updated) }));
+      await loadBenefits();
       setMessage("검수 상태가 변경되었습니다.");
     } catch {
       setError("혜택 저장에 실패했습니다.");
@@ -348,18 +354,14 @@ export function AdminBenefitsPanel() {
     }
   }
 
-  async function handleActiveToggle(benefit: AdminBenefit) {
+  async function handleActiveToggle(benefit: AdminBenefitSummary) {
     setActiveSavingId(benefit.id);
     setMessage(null);
     setError(null);
 
     try {
-      const updated = await updateAdminBenefitActive(benefit.id, { isActive: !benefit.isActive });
-      setBenefits((items) => items.map((item) => (item.id === updated.id ? updated : item)));
-      if (editingBenefit?.id === updated.id) {
-        setEditingBenefit(updated);
-        setForm(toFormState(updated));
-      }
+      await updateAdminBenefitActive(benefit.id, { isActive: !benefit.isActive });
+      await loadBenefits();
       setMessage("혜택 노출 상태가 변경되었습니다.");
     } catch {
       setError("혜택 저장에 실패했습니다.");
@@ -558,7 +560,7 @@ function BenefitCard({
   onStatusChange,
   onStatusSubmit,
 }: {
-  benefit: AdminBenefit;
+  benefit: AdminBenefitSummary;
   statusForm: StatusFormState;
   statusSaving: boolean;
   activeSaving: boolean;
@@ -581,7 +583,7 @@ function BenefitCard({
             </span>
           </div>
           <p className="mt-1 text-sm text-neutral-500">
-            {benefit.brandName} · {benefit.categoryName}
+            {benefit.brandName}
           </p>
         </div>
         <div className="flex gap-2">
@@ -609,15 +611,11 @@ function BenefitCard({
       <p className="mt-4 text-sm leading-6 text-neutral-700">{benefit.summary}</p>
       <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
         <Info label="혜택 유형" value={BENEFIT_TYPE_LABELS[benefit.benefitType]} />
-        <Info label="생일 기간 유형" value={BIRTHDAY_TIMING_LABELS[benefit.birthdayTimingType]} />
-        <Info label="앱 필요 여부" value={benefit.requiredApp ? "필요" : "불필요"} />
-        <Info label="멤버십 필요 여부" value={benefit.requiredMembership ? "필요" : "불필요"} />
-        <Info label="구매 조건 여부" value={benefit.requiredPurchase ? "필요" : "불필요"} />
-        <Info label="사용 가능 기간" value={benefit.usagePeriodDescription ?? "-"} />
+        <Info label="적용 시점" value={OCCASION_TYPE_LABELS[benefit.applicableTiming]} />
         <Info label="최근 확인일" value={benefit.lastVerifiedAt ?? "-"} />
-        <Info label="조건 요약" value={benefit.conditionSummary ?? "-"} />
-        <Info label="대표 혜택 개수" value={String((benefit.detailItems ?? []).filter((item) => item.isActive).length)} />
-        <Info label="공식 출처 개수" value={String((benefit.sources ?? []).length)} />
+        <Info label="대표 혜택 개수" value={String(benefit.detailItemCount)} />
+        <Info label="공식 출처 개수" value={String(benefit.sourceCount)} />
+        <Info label="태그 개수" value={String(benefit.tagCount)} />
       </dl>
 
       <form className="mt-5 grid gap-3 rounded-lg border border-border p-4 lg:grid-cols-[160px_160px_1fr_100px]" onSubmit={onStatusSubmit}>

@@ -53,7 +53,7 @@ public class BenefitCandidateService {
     }
 
     @Transactional(readOnly = true)
-    public List<BenefitCandidateResponse> getCandidates(
+    public List<BenefitCandidateSummaryResponse> getCandidates(
             Long sourceWatchId,
             Long collectionRunId,
             BenefitCandidateStatus status,
@@ -71,7 +71,7 @@ public class BenefitCandidateService {
                 .filter(candidate -> collectionRunId == null
                         || collectionRunId.equals(resolveCollectionRunId(candidate, collectionRunIdBySnapshotId)))
                 .limit(normalizeLimit(limit))
-                .map(candidate -> BenefitCandidateResponse.from(
+                .map(candidate -> BenefitCandidateSummaryResponse.from(
                         candidate,
                         resolveCollectionRunId(candidate, collectionRunIdBySnapshotId)
                 ))

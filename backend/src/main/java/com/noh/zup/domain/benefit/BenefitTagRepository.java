@@ -13,4 +13,6 @@ public interface BenefitTagRepository extends JpaRepository<BenefitTag, Long> {
     List<BenefitTag> findAllByTagSlug(String tagSlug);
 
     Optional<BenefitTag> findByBenefitIdAndTagId(Long benefitId, Long tagId);
+
+    long countByBenefitId(Long benefitId);
 }

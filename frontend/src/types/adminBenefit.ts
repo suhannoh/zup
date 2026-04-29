@@ -30,7 +30,7 @@ export type VerificationStatus =
   | "EXPIRED"
   | "HIDDEN";
 
-export type AdminBenefit = {
+export type AdminBenefitDetail = {
   id: number;
   brandId: number;
   brandName: string;
@@ -61,6 +61,27 @@ export type AdminBenefit = {
   sources: AdminBenefitSourceSummary[];
   detailItems?: AdminBenefitDetailItem[];
 };
+
+export type AdminBenefitSummary = {
+  id: number;
+  brandId: number;
+  brandName: string;
+  brandSlug: string;
+  title: string;
+  summary: string;
+  benefitType: BenefitType;
+  applicableTiming: OccasionType;
+  verificationStatus: VerificationStatus;
+  isActive: boolean;
+  lastVerifiedAt: string | null;
+  detailItemCount: number;
+  sourceCount: number;
+  tagCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminBenefit = AdminBenefitDetail;
 
 export type AdminBenefitDetailItem = {
   id: number;

@@ -8,4 +8,6 @@ public interface BenefitDetailItemRepository extends JpaRepository<BenefitDetail
     List<BenefitDetailItem> findAllByBenefitIdOrderByDisplayOrderAscIdAsc(Long benefitId);
 
     List<BenefitDetailItem> findAllByBenefitIdAndIsActiveTrueOrderByDisplayOrderAscIdAsc(Long benefitId);
+
+    long countByBenefitId(Long benefitId);
 }

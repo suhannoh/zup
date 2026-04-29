@@ -283,6 +283,45 @@ class AdminApiControllerTest {
     }
 
     @Test
+    void adminBenefitListReturnsSummaryWithoutDetailCollections() throws Exception {
+        Long brandId = brandRepository.findBySlug("cgv").orElseThrow().getId();
+        Long benefitId = createBenefit(brandId, "Summary DTO benefit", VerificationStatus.VERIFIED);
+
+        mockMvc.perform(post("/api/v1/admin/benefits/{benefitId}/sources", benefitId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "sourceType", "OFFICIAL_HOME",
+                                "sourceUrl", "https://example.com/summary-source",
+                                "sourceTitle", "공식 안내 페이지",
+                                "sourceCheckedAt", "2026-04-29"
+                        ))))
+                .andExpect(status().isOk());
+
+        Long tagId = tagRepository.findAll().get(0).getId();
+        mockMvc.perform(post("/api/v1/admin/benefits/{benefitId}/tags", benefitId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("tagId", tagId))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/admin/benefits?keyword=Summary DTO benefit"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].id").value(benefitId))
+                .andExpect(jsonPath("$.data[0].detailItemCount").exists())
+                .andExpect(jsonPath("$.data[0].sourceCount").value(1))
+                .andExpect(jsonPath("$.data[0].tagCount").value(1))
+                .andExpect(jsonPath("$.data[0].detailItems").doesNotExist())
+                .andExpect(jsonPath("$.data[0].sources").doesNotExist())
+                .andExpect(jsonPath("$.data[0].tags").doesNotExist())
+                .andExpect(jsonPath("$.data[0].conditionSummary").doesNotExist());
+
+        mockMvc.perform(get("/api/v1/admin/benefits/{id}", benefitId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.sources", hasSize(1)))
+                .andExpect(jsonPath("$.data.tags", hasSize(1)));
+    }
+
+    @Test
     void createManualBenefitPublishedWithoutSourceFails() throws Exception {
         Long brandId = brandRepository.findBySlug("cgv").orElseThrow().getId();
 

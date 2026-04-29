@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { getBenefitCandidates } from "@/lib/api/adminApi";
 import { CANDIDATE_STATUS_CLASS, CANDIDATE_STATUS_LABELS } from "@/lib/adminLabels";
-import type { BenefitCandidate, BenefitCandidateStatus } from "@/types/benefitCandidate";
+import type { BenefitCandidateStatus, BenefitCandidateSummary } from "@/types/benefitCandidate";
 
 const statusOptions: Array<BenefitCandidateStatus | "ALL"> = ["ALL", "NEEDS_REVIEW", "APPROVED", "REJECTED"];
 
@@ -26,7 +26,7 @@ function formatDateTime(value: string | null) {
 export function AdminBenefitCandidatesPanel() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [candidates, setCandidates] = useState<BenefitCandidate[]>([]);
+  const [candidates, setCandidates] = useState<BenefitCandidateSummary[]>([]);
   const [statusFilter, setStatusFilter] = useState<BenefitCandidateStatus | "ALL">(
     (searchParams.get("status") as BenefitCandidateStatus | "ALL") ?? "NEEDS_REVIEW"
   );
@@ -163,7 +163,6 @@ export function AdminBenefitCandidatesPanel() {
                 검수하기
               </Link>
             </div>
-            <p className="mt-4 text-sm leading-6 text-neutral-700">{candidate.summary}</p>
             {candidate.needsManualReview ? (
               <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-800">
                 이 후보는 현재 자동 수집이 차단된 출처에서 생성된 항목입니다. 공식 페이지를 직접 확인한 뒤 내용을 검수하거나 반려해 주세요.
@@ -174,9 +173,11 @@ export function AdminBenefitCandidatesPanel() {
               <Info label="SourceWatch ID" value={String(candidate.sourceWatchId)} />
               <Info label="CollectionRun ID" value={candidate.collectionRunId ? String(candidate.collectionRunId) : "-"} />
               <Info label="Snapshot ID" value={String(candidate.snapshotId)} />
+              <Info label="혜택 유형" value={candidate.benefitType} />
+              <Info label="적용 시점" value={candidate.applicableTiming} />
+              <Info label="경고 개수" value={String(candidate.warningCount)} />
+              <Info label="제외 문구 개수" value={String(candidate.excludedTextCount)} />
               <Info label="생성 일시" value={formatDateTime(candidate.createdAt)} />
-              <Info label="생성된 혜택 ID" value={candidate.approvedBenefitId ? String(candidate.approvedBenefitId) : "-"} />
-              <Info label="승인 일시" value={formatDateTime(candidate.approvedAt)} />
             </dl>
           </article>
         ))}

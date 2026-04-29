@@ -78,6 +78,17 @@ function normalizeOptional(value: string) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function createEmptySource(checkedAt = "", memo = ""): SourceForm {
+  return {
+    sourceType: "OFFICIAL_HOME",
+    sourceUrl: "",
+    sourceTitle: "",
+    sourceCheckedAt: checkedAt,
+    memo,
+    collectionMethod: "MANUAL_VERIFIED",
+  };
+}
+
 const emptyForm: FormState = {
   brandId: "",
   title: "",
@@ -107,18 +118,17 @@ const emptyForm: FormState = {
     },
   ],
   sources: [
-    {
-      sourceType: "OFFICIAL_HOME",
-      sourceUrl: "",
-      sourceTitle: "",
-      sourceCheckedAt: today(),
-      memo: "관리자가 공식 페이지 직접 확인",
-      collectionMethod: "MANUAL_VERIFIED",
-    },
+    createEmptySource(today(), "관리자가 공식 페이지 직접 확인"),
   ],
 };
 
 const publishBlockedTerms = ["확인 필요", "임시", "테스트", "TODO", "미정"];
+
+type ChecklistItem = {
+  label: string;
+  ok: boolean;
+  warning: string;
+};
 
 export function AdminManualBenefitCreatePanel() {
   const router = useRouter();
@@ -174,6 +184,83 @@ export function AdminManualBenefitCreatePanel() {
     return publishBlockedTerms.filter((term) => text.includes(term));
   }, [form]);
 
+  const selectedBrand = useMemo(
+    () => brands.find((brand) => String(brand.id) === form.brandId) ?? null,
+    [brands, form.brandId],
+  );
+
+  const activePreviewItems = useMemo(
+    () => form.detailItems.filter((item) => item.isActive && item.title.trim().length > 0),
+    [form.detailItems],
+  );
+
+  const validSources = useMemo(
+    () => form.sources.filter((source) => source.sourceUrl.trim().length > 0 && source.sourceCheckedAt.length > 0),
+    [form.sources],
+  );
+
+  const partialSources = useMemo(
+    () => form.sources.filter((source) => {
+      const hasUrl = source.sourceUrl.trim().length > 0;
+      const hasCheckedAt = source.sourceCheckedAt.length > 0;
+      const hasAnyInput = hasUrl || hasCheckedAt || source.sourceTitle.trim().length > 0 || source.memo.trim().length > 0;
+      return hasAnyInput && (!hasUrl || !hasCheckedAt);
+    }),
+    [form.sources],
+  );
+
+  const duplicateSourceUrls = useMemo(() => {
+    const counts = new Map<string, number>();
+    form.sources.forEach((source) => {
+      const url = source.sourceUrl.trim();
+      if (url.length === 0) {
+        return;
+      }
+      counts.set(url, (counts.get(url) ?? 0) + 1);
+    });
+    return Array.from(counts.entries()).filter(([, count]) => count > 1).map(([url]) => url);
+  }, [form.sources]);
+
+  const checklist = useMemo<ChecklistItem[]>(() => [
+    {
+      label: "브랜드 선택됨",
+      ok: Boolean(form.brandId && selectedBrand),
+      warning: "브랜드를 선택하세요",
+    },
+    {
+      label: "제목 입력됨",
+      ok: form.title.trim().length > 0,
+      warning: "혜택 제목을 입력하세요",
+    },
+    {
+      label: "요약 입력됨",
+      ok: form.summary.trim().length > 0,
+      warning: "요약을 입력하세요",
+    },
+    {
+      label: "대표 혜택 1개 이상",
+      ok: activePreviewItems.length > 0,
+      warning: "대표 혜택이 없습니다",
+    },
+    {
+      label: "공식 출처 1개 이상",
+      ok: validSources.length > 0,
+      warning: "공식 출처 URL을 입력하세요",
+    },
+    {
+      label: "확인일 입력됨",
+      ok: validSources.length > 0,
+      warning: "최종 확인일을 입력하세요",
+    },
+    {
+      label: "금지어 없음",
+      ok: publishBlocked.length === 0,
+      warning: publishBlocked.length > 0 ? `차단 표현: ${publishBlocked.join(", ")}` : "금지어를 확인하세요",
+    },
+  ], [activePreviewItems.length, form.brandId, form.summary, form.title, publishBlocked, selectedBrand, validSources.length]);
+
+  const publishedReady = checklist.every((item) => item.ok);
+
   function update(next: Partial<FormState>) {
     setForm((current) => ({ ...current, ...next }));
   }
@@ -209,6 +296,25 @@ export function AdminManualBenefitCreatePanel() {
     }));
   }
 
+  function addSource() {
+    setForm((current) => ({
+      ...current,
+      sources: [...current.sources, createEmptySource()],
+    }));
+  }
+
+  function removeSource(index: number) {
+    setForm((current) => {
+      if (current.sources.length <= 1) {
+        return current;
+      }
+      return {
+        ...current,
+        sources: current.sources.filter((_, sourceIndex) => sourceIndex !== index),
+      };
+    });
+  }
+
   function toRequest(): AdminManualBenefitCreateRequest {
     return {
       brandId: Number(form.brandId),
@@ -226,7 +332,7 @@ export function AdminManualBenefitCreatePanel() {
       usagePeriodDescription: normalizeOptional(form.usagePeriodDescription),
       caution: normalizeOptional(form.caution),
       verificationStatus: form.verificationStatus,
-      lastVerifiedAt: form.sources[0]?.sourceCheckedAt || null,
+      lastVerifiedAt: validSources[0]?.sourceCheckedAt || null,
       isActive: form.isActive,
       detailItems: form.detailItems
         .filter((item) => item.title.trim())
@@ -239,7 +345,7 @@ export function AdminManualBenefitCreatePanel() {
           displayOrder: index + 1,
           isActive: item.isActive,
         })),
-      sources: form.sources.map((source) => ({
+      sources: validSources.map((source) => ({
         sourceType: source.sourceType,
         sourceUrl: source.sourceUrl.trim(),
         sourceTitle: normalizeOptional(source.sourceTitle),
@@ -255,8 +361,14 @@ export function AdminManualBenefitCreatePanel() {
     if (!form.brandId || !form.title.trim() || !form.summary.trim()) {
       return "브랜드, 제목, 요약은 필수입니다.";
     }
-    if (form.sources.some((source) => !source.sourceUrl.trim() || !source.sourceCheckedAt)) {
-      return "공식 출처 URL과 확인일은 필수입니다.";
+    if (validSources.length === 0) {
+      return "공식 출처를 1개 이상 입력해야 합니다.";
+    }
+    if (partialSources.length > 0) {
+      return "입력 중인 공식 출처에는 URL과 확인일을 모두 입력해야 합니다.";
+    }
+    if (form.verificationStatus === "PUBLISHED" && !publishedReady) {
+      return "공개 중으로 저장하려면 공식 출처와 필수 정보를 모두 입력해야 합니다.";
     }
     if (form.verificationStatus === "PUBLISHED" && publishBlocked.length > 0) {
       return `공개 중 저장을 막는 표현이 있습니다: ${publishBlocked.join(", ")}`;
@@ -284,6 +396,11 @@ export function AdminManualBenefitCreatePanel() {
       setSaving(false);
     }
   }
+
+  const saveHelp = form.verificationStatus === "PUBLISHED"
+    ? "공개 중 상태로 저장됩니다. 사용자 브랜드 페이지에 바로 노출됩니다."
+    : "검증 완료 상태로 저장됩니다. 사용자 화면에는 아직 노출되지 않습니다.";
+  const disableSubmit = saving || (form.verificationStatus === "PUBLISHED" && !publishedReady);
 
   return (
     <section className="space-y-6">
@@ -364,21 +481,63 @@ export function AdminManualBenefitCreatePanel() {
         </div>
 
         <aside className="space-y-5 xl:sticky xl:top-28 xl:self-start">
+          <ManualBenefitPreview
+            checklist={checklist}
+            detailItems={activePreviewItems}
+            form={form}
+            isPublishedMode={form.verificationStatus === "PUBLISHED"}
+            publishedReady={publishedReady}
+            selectedBrand={selectedBrand}
+            validSources={validSources}
+          />
+
           <Panel title="공식 출처">
+            {validSources.length === 0 ? (
+              <p className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+                공식 출처를 1개 이상 입력해야 합니다.
+              </p>
+            ) : null}
+            {duplicateSourceUrls.length > 0 ? (
+              <p className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+                중복된 출처 URL이 있습니다: {duplicateSourceUrls.join(", ")}
+              </p>
+            ) : null}
             {form.sources.map((source, index) => (
-              <div key={index} className="space-y-3">
-                <Select label="출처 유형" value={source.sourceType} onChange={(sourceType) => updateSource(index, { sourceType: sourceType as SourceType })}>
-                  {SOURCE_TYPE_OPTIONS.map((type) => (
-                    <option key={type} value={type}>{SOURCE_TYPE_LABELS[type]}</option>
-                  ))}
-                </Select>
-                <TextInput label="출처 URL" value={source.sourceUrl} onChange={(sourceUrl) => updateSource(index, { sourceUrl })} required type="url" />
-                <TextInput label="출처 제목" value={source.sourceTitle} onChange={(sourceTitle) => updateSource(index, { sourceTitle })} />
-                <TextInput label="확인일" value={source.sourceCheckedAt} onChange={(sourceCheckedAt) => updateSource(index, { sourceCheckedAt })} required type="date" />
+              <div key={index} className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-neutral-900">
+                      {index === 0 ? "대표 출처" : `${index + 1}번 출처`}
+                    </div>
+                    <p className="mt-1 text-xs text-neutral-500">첫 번째 유효 출처는 대표 출처로 저장됩니다.</p>
+                  </div>
+                  <button
+                    className="text-sm font-semibold text-red-600 disabled:text-neutral-400"
+                    disabled={form.sources.length <= 1}
+                    onClick={() => removeSource(index)}
+                    type="button"
+                  >
+                    삭제
+                  </button>
+                </div>
+                <SourceInputErrors source={source} />
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
+                  <Select label="출처 유형" value={source.sourceType} onChange={(sourceType) => updateSource(index, { sourceType: sourceType as SourceType })}>
+                    {SOURCE_TYPE_OPTIONS.map((type) => (
+                      <option key={type} value={type}>{SOURCE_TYPE_LABELS[type]}</option>
+                    ))}
+                  </Select>
+                  <TextInput label="출처 URL" value={source.sourceUrl} onChange={(sourceUrl) => updateSource(index, { sourceUrl })} type="url" />
+                  <TextInput label="출처 제목" value={source.sourceTitle} onChange={(sourceTitle) => updateSource(index, { sourceTitle })} />
+                  <TextInput label="확인일" value={source.sourceCheckedAt} onChange={(sourceCheckedAt) => updateSource(index, { sourceCheckedAt })} type="date" />
+                </div>
                 <TextArea label="메모" value={source.memo} onChange={(memo) => updateSource(index, { memo })} />
                 <Info label="검증 방식" value="MANUAL_VERIFIED" />
               </div>
             ))}
+            <button className="h-10 rounded-lg border border-neutral-200 px-3 text-sm font-semibold" type="button" onClick={addSource}>
+              출처 추가
+            </button>
           </Panel>
 
           <Panel title="저장 상태">
@@ -387,16 +546,204 @@ export function AdminManualBenefitCreatePanel() {
               <option value="PUBLISHED">{VERIFICATION_STATUS_LABELS.PUBLISHED}</option>
             </Select>
             <Checkbox label="활성 상태" checked={form.isActive} onChange={(isActive) => update({ isActive })} />
-            <p className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800">
-              기본값은 검증 완료입니다. 공개 중 저장은 공식 출처와 확인일, 금지어 검사를 통과해야 합니다.
+            <p className="rounded-lg bg-neutral-50 p-3 text-xs leading-5 text-neutral-700">
+              {saveHelp}
             </p>
-            <button className="h-11 w-full rounded-lg bg-blue-600 px-4 text-sm font-bold text-white disabled:opacity-60" type="submit" disabled={saving}>
+            {form.verificationStatus === "PUBLISHED" && !publishedReady ? (
+              <p className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+                공개 중으로 저장하려면 공식 출처와 필수 정보를 모두 입력해야 합니다.
+              </p>
+            ) : null}
+            <button className="h-11 w-full rounded-lg bg-blue-600 px-4 text-sm font-bold text-white disabled:opacity-60" type="submit" disabled={disableSubmit}>
               {saving ? "등록 중" : "수동 혜택 등록"}
             </button>
           </Panel>
         </aside>
       </form>
     </section>
+  );
+}
+
+function ManualBenefitPreview({
+  checklist,
+  detailItems,
+  form,
+  isPublishedMode,
+  publishedReady,
+  selectedBrand,
+  validSources,
+}: {
+  checklist: ChecklistItem[];
+  detailItems: DetailItemForm[];
+  form: FormState;
+  isPublishedMode: boolean;
+  publishedReady: boolean;
+  selectedBrand: AdminBrand | null;
+  validSources: SourceForm[];
+}) {
+  const primarySource = validSources[0];
+  const checkedAt = primarySource?.sourceCheckedAt || "";
+  const brandName = selectedBrand?.name ?? "브랜드 선택 전";
+  const visibleSources = validSources.slice(0, 3);
+  const hiddenSourceCount = Math.max(validSources.length - visibleSources.length, 0);
+
+  return (
+    <Panel title="공개 화면 미리보기">
+      <p className="text-sm leading-6 text-neutral-600">
+        저장 전 사용자 브랜드 페이지에서 보일 내용을 미리 확인합니다.
+      </p>
+
+      <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+        <div className="text-xs font-semibold text-neutral-500">{brandName}</div>
+        <h3 className="mt-2 text-xl font-bold leading-7 text-neutral-950">
+          {form.title.trim() || "혜택 제목을 입력하세요"}
+        </h3>
+        <p className="mt-2 text-sm leading-6 text-neutral-700">
+          {form.summary.trim() || "요약을 입력하면 사용자 화면 미리보기에 표시됩니다."}
+        </p>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <PreviewPill>{BENEFIT_TYPE_LABELS[form.benefitType]}</PreviewPill>
+          <PreviewPill>{OCCASION_TYPE_LABELS[form.occasionType]}</PreviewPill>
+          <PreviewPill>{BIRTHDAY_TIMING_LABELS[form.birthdayTimingType]}</PreviewPill>
+        </div>
+
+        <div className="mt-4 grid gap-2 text-xs text-neutral-700 sm:grid-cols-3">
+          <PreviewFlag label="앱 필요" value={form.requiredApp} />
+          <PreviewFlag label="회원가입 필요" value={form.requiredSignup} />
+          <PreviewFlag label="멤버십 필요" value={form.requiredMembership} />
+        </div>
+
+        <div className="mt-5 space-y-3">
+          <PreviewSection title="대표 혜택">
+            {detailItems.length > 0 ? (
+              <ul className="space-y-2">
+                {detailItems.map((item, index) => (
+                  <li key={`${item.title}-${index}`} className="rounded-lg bg-white p-3 text-sm">
+                    <div className="font-semibold text-neutral-900">{item.title.trim()}</div>
+                    {item.brandName.trim() ? <div className="mt-1 text-xs text-neutral-500">{item.brandName.trim()}</div> : null}
+                    {item.description.trim() ? <p className="mt-2 leading-5 text-neutral-700">{item.description.trim()}</p> : null}
+                    {item.conditionText.trim() ? <p className="mt-2 text-xs leading-5 text-neutral-500">{item.conditionText.trim()}</p> : null}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-neutral-500">대표 혜택이 아직 없습니다.</p>
+            )}
+          </PreviewSection>
+
+          <PreviewSection title="조건 및 기간">
+            <dl className="space-y-2 text-sm">
+              <PreviewRow label="구매 조건" value={form.conditionSummary} fallback="구매 조건을 입력하면 표시됩니다." />
+              <PreviewRow label="이용 조건" value={form.caution} fallback="이용 조건과 주의사항을 입력하면 표시됩니다." />
+              <PreviewRow label="사용 가능 기간" value={form.usagePeriodDescription} fallback="사용 가능 기간을 입력하면 표시됩니다." />
+              <PreviewRow label="최근 확인일" value={checkedAt} fallback="확인일을 입력하면 표시됩니다." />
+            </dl>
+          </PreviewSection>
+
+          <PreviewSection title="공식 출처">
+            {visibleSources.length > 0 ? (
+              <ul className="space-y-2">
+                {visibleSources.map((source, index) => (
+                  <li key={`${source.sourceUrl}-${index}`}>
+                    <a className="text-sm font-semibold text-blue-600 hover:underline" href={source.sourceUrl.trim()} rel="noreferrer" target="_blank">
+                      {source.sourceTitle.trim() || `공식 출처 ${index + 1}`}
+                    </a>
+                  </li>
+                ))}
+                {hiddenSourceCount > 0 ? (
+                  <li className="text-sm text-neutral-500">외 {hiddenSourceCount}개 출처</li>
+                ) : null}
+              </ul>
+            ) : (
+              <p className="text-sm text-neutral-500">공식 출처를 입력하면 출처 링크가 표시됩니다.</p>
+            )}
+          </PreviewSection>
+        </div>
+      </div>
+
+      <div className={isPublishedMode ? "rounded-2xl border border-amber-200 bg-amber-50 p-4" : "rounded-2xl border border-neutral-200 bg-white p-4"}>
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-bold text-neutral-950">공개 전 체크</h3>
+          {isPublishedMode ? (
+            <span className={publishedReady ? "rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-700" : "rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800"}>
+              {publishedReady ? "공개 가능" : "조건 확인 필요"}
+            </span>
+          ) : null}
+        </div>
+        <ul className="mt-3 space-y-2">
+          {checklist.map((item) => (
+            <li key={item.label} className="flex items-start gap-2 text-xs leading-5">
+              <span className={item.ok ? "rounded-full bg-green-100 px-2 py-0.5 font-semibold text-green-700" : "rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-800"}>
+                {item.ok ? "통과" : "주의"}
+              </span>
+              <span className={item.ok ? "text-neutral-700" : "text-amber-900"}>
+                {item.ok ? item.label : item.warning}
+              </span>
+            </li>
+          ))}
+        </ul>
+        {isPublishedMode && !publishedReady ? (
+          <p className="mt-3 rounded-lg bg-white p-3 text-xs leading-5 text-amber-900">
+            공개 중으로 저장하려면 공식 출처와 필수 정보를 모두 입력해야 합니다.
+          </p>
+        ) : null}
+      </div>
+    </Panel>
+  );
+}
+
+function SourceInputErrors({ source }: { source: SourceForm }) {
+  const hasUrl = source.sourceUrl.trim().length > 0;
+  const hasCheckedAt = source.sourceCheckedAt.length > 0;
+  const hasContext = hasCheckedAt || source.sourceTitle.trim().length > 0 || source.memo.trim().length > 0;
+  const errors = [
+    !hasUrl && hasContext ? "출처 URL을 입력해 주세요." : null,
+    hasUrl && !hasCheckedAt ? "확인일을 입력해 주세요." : null,
+  ].filter((item): item is string => Boolean(item));
+
+  if (errors.length === 0) {
+    return null;
+  }
+
+  return (
+    <ul className="space-y-1 rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+      {errors.map((item) => (
+        <li key={item}>{item}</li>
+      ))}
+    </ul>
+  );
+}
+
+function PreviewPill({ children }: { children: React.ReactNode }) {
+  return <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-neutral-700">{children}</span>;
+}
+
+function PreviewFlag({ label, value }: { label: string; value: boolean }) {
+  return (
+    <div className="rounded-lg bg-white px-3 py-2">
+      <span className="font-semibold">{label}</span>
+      <span className="ml-2 text-neutral-500">{value ? "필요" : "해당 없음"}</span>
+    </div>
+  );
+}
+
+function PreviewSection({ children, title }: { children: React.ReactNode; title: string }) {
+  return (
+    <section>
+      <h4 className="mb-2 text-xs font-bold text-neutral-500">{title}</h4>
+      {children}
+    </section>
+  );
+}
+
+function PreviewRow({ fallback, label, value }: { fallback: string; label: string; value: string }) {
+  const trimmed = value.trim();
+  return (
+    <div>
+      <dt className="text-xs font-semibold text-neutral-500">{label}</dt>
+      <dd className={trimmed ? "mt-1 text-neutral-800" : "mt-1 text-neutral-500"}>{trimmed || fallback}</dd>
+    </div>
   );
 }
 

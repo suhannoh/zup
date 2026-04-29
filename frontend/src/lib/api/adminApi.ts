@@ -10,6 +10,7 @@ import type {
   AdminBenefitDetailItemRequest,
   AdminManualBenefitCreateRequest,
   AdminBenefitSearchParams,
+  AdminBenefitSummary,
   AdminBenefitUpdateRequest,
   VerificationStatus,
 } from "@/types/adminBenefit";
@@ -38,6 +39,7 @@ import type {
   BenefitCandidateApproveRequest,
   BenefitCandidateApproveResponse,
   BenefitCandidateSearchParams,
+  BenefitCandidateSummary,
   BenefitCandidateStatus,
 } from "@/types/benefitCandidate";
 import type { CollectionRun, CollectionRunSearchParams } from "@/types/collectionRun";
@@ -146,7 +148,7 @@ export async function updateAdminBrandActive(brandId: number, request: { isActiv
 }
 
 export async function getAdminBenefits(params?: AdminBenefitSearchParams) {
-  const response = await adminApiClient.get<ApiResponse<AdminBenefit[]>>("/api/v1/admin/benefits", {
+  const response = await adminApiClient.get<ApiResponse<AdminBenefitSummary[]>>("/api/v1/admin/benefits", {
     params: compactParams(params),
   });
   return response.data.data;
@@ -344,7 +346,7 @@ export async function regenerateSourceWatchCandidates(sourceWatchId: number) {
 }
 
 export async function getBenefitCandidates(params?: BenefitCandidateSearchParams) {
-  const response = await adminApiClient.get<ApiResponse<BenefitCandidate[]>>("/api/v1/admin/benefit-candidates", {
+  const response = await adminApiClient.get<ApiResponse<BenefitCandidateSummary[]>>("/api/v1/admin/benefit-candidates", {
     params: compactParams(params),
   });
   return response.data.data;
