@@ -11,7 +11,7 @@ import {
   updateSourceWatch,
   updateSourceWatchActive,
 } from "@/lib/api/adminApi";
-import { COLLECTION_STATUS_CLASS, COLLECTION_STATUS_LABELS } from "@/lib/adminLabels";
+import { COLLECTION_FAILURE_REASON_LABELS, COLLECTION_STATUS_CLASS, COLLECTION_STATUS_LABELS } from "@/lib/adminLabels";
 import { SOURCE_TYPE_LABELS, SOURCE_TYPE_OPTIONS } from "@/lib/sourceLabels";
 import type { SourceType } from "@/types/adminBenefitSource";
 import type { AdminBrand } from "@/types/adminBrand";
@@ -39,16 +39,20 @@ const emptyForm: FormState = {
 
 function toForm(sourceWatch: SourceWatch): FormState {
   return {
-    brandId: String(sourceWatch.brandId),
-    sourceType: sourceWatch.sourceType,
-    title: sourceWatch.title,
-    url: sourceWatch.url,
-    isActive: sourceWatch.isActive,
+    brandId: sourceWatch.brandId ? String(sourceWatch.brandId) : "",
+    sourceType: sourceWatch.sourceType ?? "OFFICIAL_HOME",
+    title: sourceWatch.title ?? "",
+    url: sourceWatch.url ?? "",
+    isActive: Boolean(sourceWatch.isActive),
   };
 }
 
 function formatDateTime(value: string | null) {
   if (!value) {
+    return "-";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
     return "-";
   }
   return new Intl.DateTimeFormat("ko-KR", {
@@ -57,7 +61,7 @@ function formatDateTime(value: string | null) {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(new Date(value));
+  }).format(date);
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -89,8 +93,8 @@ export function AdminSourceWatchesPanel() {
     setError(null);
     try {
       const [watchData, brandData] = await Promise.all([getSourceWatches(), getAdminBrands()]);
-      setSourceWatches(watchData);
-      setBrands(brandData);
+      setSourceWatches(watchData ?? []);
+      setBrands(brandData ?? []);
     } catch (loadError) {
       setError(getErrorMessage(loadError, "SourceWatch 목록을 불러오지 못했습니다."));
     } finally {
@@ -167,7 +171,11 @@ export function AdminSourceWatchesPanel() {
     try {
       const result = await collectSourceWatch(sourceWatch.id);
       setCollectResults((current) => ({ ...current, [sourceWatch.id]: result }));
-      setMessage(`수집 완료: 후보 ${result.candidateCount}개, 동일 HTML 여부 ${String(result.sameAsPrevious)}`);
+      if (result.failureReason) {
+        setMessage(`수집 보류: ${COLLECTION_FAILURE_REASON_LABELS[result.failureReason] ?? result.failureReason}`);
+      } else {
+        setMessage(`수집 완료: 후보 ${result.candidateCount}개, 동일 HTML 여부 ${String(result.sameAsPrevious)}`);
+      }
       setSourceWatches(await getSourceWatches());
     } catch (collectError) {
       setError(getErrorMessage(collectError, "수집 실패"));
@@ -192,8 +200,8 @@ export function AdminSourceWatchesPanel() {
   }
 
   function isFixtureSourceWatch(sourceWatch: SourceWatch) {
-    const title = sourceWatch.title.toLowerCase();
-    const url = sourceWatch.url.toLowerCase();
+    const title = (sourceWatch.title ?? "").toLowerCase();
+    const url = (sourceWatch.url ?? "").toLowerCase();
     return (
       title.startsWith("local collection fixture") ||
       url.includes("/collection-fixtures/") ||
@@ -307,7 +315,7 @@ export function AdminSourceWatchesPanel() {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-lg font-bold">{sourceWatch.title}</h3>
+                    <h3 className="text-lg font-bold">{sourceWatch.title ?? "-"}</h3>
                     <span className={`rounded-full px-3 py-1 text-xs font-semibold ${COLLECTION_STATUS_CLASS[sourceWatch.lastStatus] ?? "bg-neutral-100 text-neutral-700"}`}>
                       {COLLECTION_STATUS_LABELS[sourceWatch.lastStatus] ?? sourceWatch.lastStatus}
                     </span>
@@ -316,7 +324,7 @@ export function AdminSourceWatchesPanel() {
                     </span>
                   </div>
                   <p className="mt-1 text-sm text-neutral-500">
-                    {sourceWatch.brandName} · {SOURCE_TYPE_LABELS[sourceWatch.sourceType]}
+                    {sourceWatch.brandName ?? "-"} · {SOURCE_TYPE_LABELS[sourceWatch.sourceType] ?? sourceWatch.sourceType ?? "-"}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -349,24 +357,35 @@ export function AdminSourceWatchesPanel() {
                 </div>
               </div>
               <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
-                <Info label="수집 URL" value={sourceWatch.url} wide />
+                <Info label="수집 URL" value={sourceWatch.url ?? "-"} wide />
                 <Info label="최근 수집 일시" value={formatDateTime(sourceWatch.lastFetchedAt)} />
-                <Info label="실패 횟수" value={String(sourceWatch.failureCount)} />
+                <Info label="실패 횟수" value={String(sourceWatch.failureCount ?? 0)} />
                 <Info label="최근 content hash" value={sourceWatch.lastContentHash ? `${sourceWatch.lastContentHash.slice(0, 16)}...` : "-"} />
                 <Info label="다음 수집 예정" value={formatDateTime(sourceWatch.nextFetchAt)} />
               </dl>
               <div className="mt-4 grid gap-2 text-xs text-neutral-500 md:grid-cols-2">
                 <p className="rounded-lg bg-neutral-50 p-3">
-                  <span className="font-semibold text-neutral-700">수집 실행</span>: 공식 URL을 다시 가져옵니다.
+                  <span className="font-semibold text-neutral-700">수집 실행</span>: robots.txt를 확인한 뒤 허용된 공식 URL만 다시 가져옵니다.
                 </p>
                 <p className="rounded-lg bg-neutral-50 p-3">
                   <span className="font-semibold text-neutral-700">후보 재생성</span>: 저장된 최신 스냅샷을 다시 분석합니다.
                 </p>
               </div>
               {collectResults[sourceWatch.id] ? (
-                <div className="mt-4 rounded-lg bg-blue-50 p-3 text-sm text-blue-800">
-                  수집 완료 · 후보: {collectResults[sourceWatch.id].candidateCount} · sameAsPrevious:{" "}
-                  {String(collectResults[sourceWatch.id].sameAsPrevious)}
+                <div className={`mt-4 rounded-lg p-3 text-sm ${collectResults[sourceWatch.id].failureReason ? "bg-amber-50 text-amber-800" : "bg-blue-50 text-blue-800"}`}>
+                  {collectResults[sourceWatch.id].failureReason ? (
+                    <>
+                      수집 보류 · 사유:{" "}
+                      {COLLECTION_FAILURE_REASON_LABELS[collectResults[sourceWatch.id].failureReason ?? ""] ??
+                        collectResults[sourceWatch.id].failureReason}
+                      <p className="mt-1 text-xs leading-5">{collectResults[sourceWatch.id].message}</p>
+                    </>
+                  ) : (
+                    <>
+                      수집 완료 · 후보: {collectResults[sourceWatch.id].candidateCount} · sameAsPrevious:{" "}
+                      {String(collectResults[sourceWatch.id].sameAsPrevious)}
+                    </>
+                  )}
                 </div>
               ) : null}
               {regenerateResults[sourceWatch.id] ? (

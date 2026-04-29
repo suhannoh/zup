@@ -34,6 +34,7 @@ export type SourceWatchCollectResponse = {
   fetched: boolean;
   sameAsPrevious: boolean;
   candidateCount: number;
+  failureReason: string | null;
   message: string;
 };
 

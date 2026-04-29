@@ -10,6 +10,8 @@ import com.noh.zup.domain.collection.extract.ExtractedText;
 import com.noh.zup.domain.collection.extract.HtmlTextExtractor;
 import com.noh.zup.domain.collection.fetch.FetchResult;
 import com.noh.zup.domain.collection.fetch.OfficialSourceFetcher;
+import com.noh.zup.domain.collection.robots.RobotsTxtCheckResult;
+import com.noh.zup.domain.collection.robots.RobotsTxtChecker;
 import com.noh.zup.domain.source.SourceType;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -28,6 +30,7 @@ public class SourceWatchService {
     private final BrandRepository brandRepository;
     private final CollectionRunRepository collectionRunRepository;
     private final OfficialSourceFetcher officialSourceFetcher;
+    private final RobotsTxtChecker robotsTxtChecker;
     private final HtmlTextExtractor htmlTextExtractor;
     private final BenefitCandidateDetector benefitCandidateDetector;
 
@@ -37,6 +40,7 @@ public class SourceWatchService {
             BrandRepository brandRepository,
             CollectionRunRepository collectionRunRepository,
             OfficialSourceFetcher officialSourceFetcher,
+            RobotsTxtChecker robotsTxtChecker,
             HtmlTextExtractor htmlTextExtractor,
             BenefitCandidateDetector benefitCandidateDetector
     ) {
@@ -45,6 +49,7 @@ public class SourceWatchService {
         this.brandRepository = brandRepository;
         this.collectionRunRepository = collectionRunRepository;
         this.officialSourceFetcher = officialSourceFetcher;
+        this.robotsTxtChecker = robotsTxtChecker;
         this.htmlTextExtractor = htmlTextExtractor;
         this.benefitCandidateDetector = benefitCandidateDetector;
     }
@@ -116,22 +121,37 @@ public class SourceWatchService {
         if (!Boolean.TRUE.equals(sourceWatch.getIsActive())) {
             sourceWatch.markSkipped();
             collectionRun.completeSkipped("SOURCE_WATCH_INACTIVE", "source watch is inactive");
-            return new SourceWatchCollectResponse(id, false, false, 0, "source watch is inactive");
+            return new SourceWatchCollectResponse(id, false, false, 0, "SOURCE_WATCH_INACTIVE", "source watch is inactive");
         }
 
         try {
+            RobotsTxtCheckResult robotsTxtCheckResult = robotsTxtChecker.check(sourceWatch.getUrl());
+            if (!robotsTxtCheckResult.allowed()) {
+                sourceWatch.markSkipped();
+                String errorMessage = buildRobotsErrorMessage(robotsTxtCheckResult);
+                collectionRun.completeSkipped(robotsTxtCheckResult.failureReason(), errorMessage);
+                return new SourceWatchCollectResponse(
+                        id,
+                        false,
+                        false,
+                        0,
+                        robotsTxtCheckResult.failureReason(),
+                        robotsTxtCheckResult.message()
+                );
+            }
+
             FetchResult fetchResult = officialSourceFetcher.fetch(sourceWatch.getUrl());
             if (!fetchResult.success()) {
                 sourceWatch.markFailed();
                 collectionRun.completeFailed(false, "FETCH_FAILED", fetchResult.failureReason());
-                return new SourceWatchCollectResponse(id, false, false, 0, fetchResult.failureReason());
+                return new SourceWatchCollectResponse(id, false, false, 0, "FETCH_FAILED", fetchResult.failureReason());
             }
 
             ExtractedText extractedText = htmlTextExtractor.extract(fetchResult.html(), sourceWatch.getUrl());
             if (!extractedText.success()) {
                 sourceWatch.markFailed();
                 collectionRun.completeFailed(true, "EXTRACT_FAILED", extractedText.failureReason());
-                return new SourceWatchCollectResponse(id, true, false, 0, extractedText.failureReason());
+                return new SourceWatchCollectResponse(id, true, false, 0, "EXTRACT_FAILED", extractedText.failureReason());
             }
 
             String contentHash = sha256(extractedText.text());
@@ -151,12 +171,23 @@ public class SourceWatchService {
 
             sourceWatch.markSuccess(contentHash);
             collectionRun.completeSuccess(true, sameAsPrevious, candidateCount);
-            return new SourceWatchCollectResponse(id, true, sameAsPrevious, candidateCount, "collection completed");
+            return new SourceWatchCollectResponse(id, true, sameAsPrevious, candidateCount, null, "collection completed");
         } catch (RuntimeException exception) {
             sourceWatch.markFailed();
             collectionRun.completeFailed(false, "UNKNOWN", exception.getMessage());
-            return new SourceWatchCollectResponse(id, false, false, 0, exception.getMessage());
+            return new SourceWatchCollectResponse(id, false, false, 0, "UNKNOWN", exception.getMessage());
         }
+    }
+
+    private String buildRobotsErrorMessage(RobotsTxtCheckResult result) {
+        StringBuilder builder = new StringBuilder(result.message());
+        if (result.robotsTxtUrl() != null) {
+            builder.append(" robots.txt: ").append(result.robotsTxtUrl());
+        }
+        if (result.matchedRule() != null) {
+            builder.append(" matchedRule: ").append(result.matchedRule());
+        }
+        return builder.toString();
     }
 
     @Transactional

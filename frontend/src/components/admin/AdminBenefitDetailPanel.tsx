@@ -82,8 +82,8 @@ function toSourceRequest(form: SourceFormState): AdminBenefitSourceCreateRequest
 
 function toSourceForm(source: AdminBenefitSource): SourceFormState {
   return {
-    sourceType: source.sourceType,
-    sourceUrl: source.sourceUrl,
+    sourceType: source.sourceType ?? "OFFICIAL_HOME",
+    sourceUrl: source.sourceUrl ?? "",
     sourceTitle: source.sourceTitle ?? "",
     sourceCheckedAt: source.sourceCheckedAt ?? "",
     memo: source.memo ?? "",
@@ -94,12 +94,12 @@ function toDetailItemForm(item: AdminBenefitDetailItem): DetailItemFormState {
   return {
     id: item.id,
     brandName: item.brandName ?? "",
-    title: item.title,
+    title: item.title ?? "",
     description: item.description ?? "",
     conditionText: item.conditionText ?? "",
     imageUrl: item.imageUrl ?? "",
-    displayOrder: item.displayOrder,
-    isActive: item.isActive,
+    displayOrder: item.displayOrder ?? 0,
+    isActive: item.isActive ?? true,
   };
 }
 
@@ -115,13 +115,17 @@ function toDetailItemRequest(item: DetailItemFormState): AdminBenefitDetailItemR
 }
 
 function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
   return new Intl.DateTimeFormat("ko-KR", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(new Date(value));
+  }).format(date);
 }
 
 function today() {
@@ -170,10 +174,10 @@ export function AdminBenefitDetailPanel({ benefitId }: { benefitId: number }) {
         getAdminBenefitDetailItems(benefitId),
       ]);
       setBenefit(benefitData);
-      setSources(sourceData);
-      setDetailItems(detailItemData.map(toDetailItemForm));
-      setTags(tagData);
-      setLogs(logData);
+      setSources(sourceData ?? []);
+      setDetailItems((detailItemData ?? []).map(toDetailItemForm));
+      setTags(tagData ?? []);
+      setLogs(logData ?? []);
     } catch {
       setError("혜택 운영 정보를 불러오지 못했습니다.");
     } finally {
@@ -401,6 +405,7 @@ export function AdminBenefitDetailPanel({ benefitId }: { benefitId: number }) {
     );
   }
 
+  const publicExposureReady = benefit.verificationStatus === "PUBLISHED" && benefit.isActive && activeSources.length > 0;
   const canPublish = benefit.verificationStatus !== "PUBLISHED" && benefit.isActive && activeSources.length > 0;
 
   return (
@@ -412,7 +417,7 @@ export function AdminBenefitDetailPanel({ benefitId }: { benefitId: number }) {
             <h1 className="text-2xl font-bold text-neutral-950">혜택 관리 / 상세 수정</h1>
             <p className="mt-1 text-sm text-neutral-600">승인된 혜택의 상세 리스트, 공식 출처, 공개 상태를 관리합니다.</p>
           </div>
-          <StatusPill status={VERIFICATION_STATUS_LABELS[benefit.verificationStatus]} />
+          <StatusPill status={VERIFICATION_STATUS_LABELS[benefit.verificationStatus] ?? benefit.verificationStatus ?? "-"} />
         </div>
       </div>
 
@@ -424,13 +429,13 @@ export function AdminBenefitDetailPanel({ benefitId }: { benefitId: number }) {
           <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-bold">혜택 정보</h2>
             <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
-              <Info label="제목" value={benefit.title} />
-              <Info label="브랜드" value={benefit.brandName} />
-              <Info label="요약" value={benefit.summary} wide />
-              <Info label="혜택 유형" value={BENEFIT_TYPE_LABELS[benefit.benefitType]} />
-              <Info label="적용 시점" value={OCCASION_TYPE_LABELS[benefit.occasionType]} />
-              <Info label="생일 지급 시점" value={BIRTHDAY_TIMING_LABELS[benefit.birthdayTimingType]} />
-              <Info label="상태" value={VERIFICATION_STATUS_LABELS[benefit.verificationStatus]} />
+              <Info label="제목" value={benefit.title ?? "-"} />
+              <Info label="브랜드" value={benefit.brandName ?? "-"} />
+              <Info label="요약" value={benefit.summary ?? "-"} wide />
+              <Info label="혜택 유형" value={BENEFIT_TYPE_LABELS[benefit.benefitType] ?? benefit.benefitType ?? "-"} />
+              <Info label="적용 시점" value={OCCASION_TYPE_LABELS[benefit.occasionType] ?? benefit.occasionType ?? "-"} />
+              <Info label="생일 지급 시점" value={BIRTHDAY_TIMING_LABELS[benefit.birthdayTimingType] ?? benefit.birthdayTimingType ?? "-"} />
+              <Info label="상태" value={VERIFICATION_STATUS_LABELS[benefit.verificationStatus] ?? benefit.verificationStatus ?? "-"} />
               <Info label="공개 여부" value={benefit.isActive ? "활성" : "비활성"} />
               <Info label="최종 검증일" value={benefit.lastVerifiedAt ?? "-"} />
               <Info label="사용 가능 기간" value={benefit.usagePeriodDescription ?? "-"} />
@@ -481,7 +486,7 @@ export function AdminBenefitDetailPanel({ benefitId }: { benefitId: number }) {
                     <TextArea label="설명" value={item.description} onChange={(description) => updateDetailItem(index, { description })} />
                     <TextArea label="사용 조건" value={item.conditionText} onChange={(conditionText) => updateDetailItem(index, { conditionText })} />
                     <div className="md:col-span-2">
-                      <TextInput label="이미지 URL" value={item.imageUrl} onChange={(imageUrl) => updateDetailItem(index, { imageUrl })} />
+                      <ImageUrlField value={item.imageUrl} onChange={(imageUrl) => updateDetailItem(index, { imageUrl })} />
                     </div>
                   </div>
                 </div>
@@ -613,8 +618,8 @@ export function AdminBenefitDetailPanel({ benefitId }: { benefitId: number }) {
           <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-bold">공개 화면 미리보기</h2>
             <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-              <h3 className="text-base font-bold">{benefit.title}</h3>
-              <p className="mt-2 text-sm leading-6 text-neutral-700">{benefit.summary}</p>
+              <h3 className="text-base font-bold">{benefit.title ?? "-"}</h3>
+              <p className="mt-2 text-sm leading-6 text-neutral-700">{benefit.summary ?? "-"}</p>
               {activeDetailItems.length > 0 ? (
                 <div className="mt-4">
                   <p className="text-sm font-semibold">대표 혜택</p>
@@ -634,7 +639,7 @@ export function AdminBenefitDetailPanel({ benefitId }: { benefitId: number }) {
           <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-bold">발행 관리</h2>
             <dl className="mt-4 space-y-3 text-sm">
-              <Info label="현재 상태" value={VERIFICATION_STATUS_LABELS[benefit.verificationStatus]} />
+              <Info label="현재 상태" value={VERIFICATION_STATUS_LABELS[benefit.verificationStatus] ?? benefit.verificationStatus ?? "-"} />
               <Info label="공개 여부" value={benefit.isActive ? "활성" : "비활성"} />
               <Info label="공식 출처" value={`${activeSources.length}개`} />
               <Info label="최근 확인일" value={benefit.lastVerifiedAt ?? "-"} />
@@ -653,6 +658,25 @@ export function AdminBenefitDetailPanel({ benefitId }: { benefitId: number }) {
             {!canPublish && benefit.verificationStatus !== "PUBLISHED" ? (
               <p className="mt-2 text-xs text-neutral-500">활성 혜택과 공식 출처가 있어야 공개 전환할 수 있습니다.</p>
             ) : null}
+          </section>
+
+          <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-bold">공개 노출 체크</h2>
+            <dl className="mt-4 space-y-3 text-sm">
+              <Info label="상태" value={VERIFICATION_STATUS_LABELS[benefit.verificationStatus] ?? benefit.verificationStatus ?? "-"} />
+              <Info label="활성 여부" value={benefit.isActive ? "활성" : "비활성"} />
+              <Info label="브랜드 연결" value={`${benefit.brandName ?? "-"} / ${benefit.brandSlug ?? "-"}`} />
+              <Info label="공식 출처" value={activeSources.length > 0 ? `${activeSources.length}개 있음` : "없음"} />
+              <Info label="상세 혜택" value={`${activeDetailItems.length}개`} />
+              <Info label="사용자 페이지 노출" value={publicExposureReady ? "노출 가능" : "노출 전"} />
+            </dl>
+            <p className={`mt-4 rounded-lg p-3 text-xs leading-5 ${publicExposureReady ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-800"}`}>
+              {publicExposureReady
+                ? "현재 혜택은 공개 중 상태이며 사용자 페이지 노출 조건을 만족합니다."
+                : benefit.verificationStatus === "VERIFIED"
+                  ? "현재 혜택은 검증 완료 상태입니다. 공개 전환 전까지 사용자 페이지에는 표시되지 않습니다."
+                  : "사용자 페이지에는 공개 중 상태이고 활성화된 혜택만 표시됩니다."}
+            </p>
           </section>
         </aside>
       </section>
@@ -707,6 +731,64 @@ function TextArea({ label, onChange, value }: { label: string; onChange: (value:
       <span>{label}</span>
       <textarea className="min-h-24 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm leading-6" value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
+  );
+}
+
+function ImageUrlField({ onChange, value }: { onChange: (value: string) => void; value: string }) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const imageUrl = value.trim();
+  const canPreview = imageUrl.length > 0 && failedUrl !== imageUrl;
+
+  return (
+    <div className="space-y-2 text-sm font-medium">
+      <span>이미지 URL</span>
+      <div className="grid gap-3 rounded-xl border border-neutral-200 bg-white p-3 md:grid-cols-[120px_minmax(0,1fr)]">
+        <div className="flex h-24 w-full items-center justify-center overflow-hidden rounded-lg border border-neutral-200 bg-neutral-50">
+          {canPreview ? (
+            <img
+              alt="혜택 이미지 미리보기"
+              className="max-h-full max-w-full object-contain"
+              src={imageUrl}
+              onError={() => setFailedUrl(imageUrl)}
+              onLoad={() => setFailedUrl(null)}
+            />
+          ) : imageUrl ? (
+            <span className="px-3 text-center text-xs leading-5 text-neutral-500">미리보기 실패</span>
+          ) : (
+            <span className="px-3 text-center text-xs leading-5 text-neutral-400">이미지 없음</span>
+          )}
+        </div>
+        <div className="min-w-0 space-y-2">
+          <input
+            className="h-11 w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm"
+            value={value}
+            onChange={(event) => {
+              setFailedUrl(null);
+              onChange(event.target.value);
+            }}
+            placeholder="https://..."
+            type="url"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            {imageUrl ? (
+              <a
+                className="rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:border-blue-200 hover:text-blue-700"
+                href={imageUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                새 탭에서 보기
+              </a>
+            ) : null}
+            {failedUrl === imageUrl && imageUrl ? (
+              <span className="text-xs text-red-600">이미지를 불러올 수 없습니다.</span>
+            ) : (
+              <span className="text-xs text-neutral-500">검수용 미리보기이며 저장 값은 URL 문자열입니다.</span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

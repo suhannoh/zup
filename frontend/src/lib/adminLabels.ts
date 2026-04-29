@@ -32,3 +32,13 @@ export const TRIGGER_TYPE_LABELS: Record<string, string> = {
   MANUAL: "수동 실행",
   SCHEDULED: "자동 실행",
 };
+
+export const COLLECTION_FAILURE_REASON_LABELS: Record<string, string> = {
+  SOURCE_WATCH_INACTIVE: "비활성 SourceWatch",
+  FETCH_FAILED: "HTML 수집 실패",
+  EXTRACT_FAILED: "본문 추출 실패",
+  ROBOTS_TXT_DISALLOWED: "robots.txt 차단",
+  ROBOTS_TXT_FETCH_FAILED: "robots.txt 확인 실패",
+  ROBOTS_TXT_PARSE_FAILED: "robots.txt 파싱 실패",
+  UNKNOWN: "알 수 없는 오류",
+};

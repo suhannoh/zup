@@ -5,6 +5,7 @@ public record SourceWatchCollectResponse(
         boolean fetched,
         boolean sameAsPrevious,
         int candidateCount,
+        String failureReason,
         String message
 ) {
 }

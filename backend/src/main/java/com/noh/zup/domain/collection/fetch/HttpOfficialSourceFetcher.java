@@ -6,17 +6,21 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
 public class HttpOfficialSourceFetcher implements OfficialSourceFetcher {
 
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
-    private static final String USER_AGENT = "ZupOfficialSourceCollector/1.0";
 
     private final HttpClient httpClient;
+    private final String userAgent;
 
-    public HttpOfficialSourceFetcher() {
+    public HttpOfficialSourceFetcher(
+            @Value("${app.crawler.user-agent:ZupOfficialSourceCollector/1.0}") String userAgent
+    ) {
+        this.userAgent = userAgent;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(TIMEOUT)
                 .followRedirects(HttpClient.Redirect.NORMAL)
@@ -29,7 +33,7 @@ public class HttpOfficialSourceFetcher implements OfficialSourceFetcher {
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .version(HttpClient.Version.HTTP_1_1)
                 .timeout(TIMEOUT)
-                .header("User-Agent", USER_AGENT)
+                .header("User-Agent", userAgent)
                 .GET()
                 .build();
 

@@ -59,7 +59,7 @@ class SourceWatchCollectionSchedulerTest {
         when(collectionRedisLock.tryLock(eq(2L), eq(Duration.ofSeconds(120))))
                 .thenReturn(Optional.of(lock));
         when(sourceWatchService.collect(2L, CollectionTriggerType.SCHEDULED))
-                .thenReturn(new SourceWatchCollectResponse(2L, true, false, 1, "collection completed"));
+                .thenReturn(new SourceWatchCollectResponse(2L, true, false, 1, null, "collection completed"));
 
         scheduler.runDueCollectionTick();
 
@@ -78,7 +78,7 @@ class SourceWatchCollectionSchedulerTest {
         when(collectionRedisLock.tryLock(eq(3L), eq(Duration.ofSeconds(120))))
                 .thenReturn(Optional.of(lock));
         when(sourceWatchService.collect(3L, CollectionTriggerType.SCHEDULED))
-                .thenReturn(new SourceWatchCollectResponse(3L, false, false, 0, "HTTP status 500"));
+                .thenReturn(new SourceWatchCollectResponse(3L, false, false, 0, "FETCH_FAILED", "HTTP status 500"));
 
         scheduler.runDueCollectionTick();
 

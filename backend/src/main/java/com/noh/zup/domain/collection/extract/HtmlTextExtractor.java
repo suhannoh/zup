@@ -1,7 +1,10 @@
 package com.noh.zup.domain.collection.extract;
 
+import java.net.URI;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -13,7 +16,10 @@ import org.springframework.util.StringUtils;
 public class HtmlTextExtractor {
 
     private static final int MIN_TEXT_LENGTH = 20;
-    private static final int MAX_IMAGE_SOURCE_COUNT = 20;
+    private static final int MAX_IMAGE_SOURCE_COUNT = 30;
+    private static final Pattern INLINE_BACKGROUND_IMAGE = Pattern.compile("url\\(['\"]?([^'\")]+)['\"]?\\)");
+    private static final Pattern STANDALONE_DISCOUNT = Pattern.compile("^([0-9][0-9,]*\\s*(?:만원|원)?|[0-9]+\\s*%|[0-9]+\\s*퍼센트)\\s*(?:중복\\s*)?할인\\.?$");
+    private static final Pattern CONDITION_ONLY = Pattern.compile("^[0-9][0-9,]*\\s*(?:만원|원)?\\s*이상\\s*(구매|주문|결제)\\s*시\\.?$");
     private static final String STRUCTURAL_NOISE_SELECTOR = String.join(", ",
             "script",
             "style",
@@ -50,6 +56,8 @@ public class HtmlTextExtractor {
             "콤보",
             "세트",
             "샐러드",
+            "타임캡슐",
+            "자물쇠",
             "free",
             "discount",
             "coupon",
@@ -69,7 +77,7 @@ public class HtmlTextExtractor {
         Document document = Jsoup.parse(html, baseUrl == null ? "" : baseUrl);
         document.select(STRUCTURAL_NOISE_SELECTOR).remove();
         removeNoiseAttributeElements(document);
-        String benefitDetailImageSources = extractBenefitDetailImageSources(document);
+        String benefitDetailImageSources = extractBenefitDetailImageSources(document, baseUrl);
         for (Element element : document.select("h1, h2, h3, h4, h5, h6, p, li, dt, dd, tr, section, article, main, div")) {
             element.appendText("\n");
         }
@@ -105,35 +113,35 @@ public class HtmlTextExtractor {
         }
     }
 
-    private String extractBenefitDetailImageSources(Document document) {
+    private String extractBenefitDetailImageSources(Document document, String baseUrl) {
         StringBuilder builder = new StringBuilder();
         Set<String> seen = new HashSet<>();
         int count = 0;
-        for (Element element : document.select("p, li, dd, dt, td, th, div")) {
+
+        for (Element element : document.select("p, li, dd, dt, td, th, div, article, section")) {
             if (count >= MAX_IMAGE_SOURCE_COUNT) {
                 break;
             }
-            String benefitText = cleanText(element.ownText());
-            if (!isBenefitDetailText(benefitText)) {
+            if (element.select("img").size() > 1) {
+                continue;
+            }
+            String nearbyText = bestNearbyText(element);
+            if (!isBenefitDetailText(nearbyText)) {
                 continue;
             }
 
             Element image = findNearbyImage(element);
-            if (image == null) {
-                continue;
-            }
-            String src = image.absUrl("src");
-            if (!StringUtils.hasText(src)) {
-                src = image.attr("src").trim();
-            }
+            String src = image == null ? findInlineBackgroundImage(element, baseUrl) : resolveImageSrc(image, baseUrl);
             if (!StringUtils.hasText(src)) {
                 continue;
             }
-            String key = cleanCouponPrefix(benefitText) + "|" + src;
+            String key = src;
             if (!seen.add(key)) {
                 continue;
             }
-            appendImageSource(builder, benefitText, src, image.attr("alt"), image.attr("title"));
+
+            Element parentLink = image == null ? element.closest("a") : image.closest("a");
+            appendImageSource(builder, nearbyText, src, image, parentLink);
             count++;
         }
         return builder.length() == 0 ? null : builder.toString().trim();
@@ -144,10 +152,6 @@ public class HtmlTextExtractor {
             return false;
         }
         String lowerText = text.toLowerCase();
-        if (!lowerText.contains("생일") && !lowerText.contains("birthday")
-                && !lowerText.contains("할인") && !lowerText.contains("무료") && !lowerText.contains("증정")) {
-            return false;
-        }
         for (String keyword : BENEFIT_DETAIL_KEYWORDS) {
             if (lowerText.contains(keyword)) {
                 return true;
@@ -156,21 +160,50 @@ public class HtmlTextExtractor {
         return false;
     }
 
+    private String bestNearbyText(Element element) {
+        String current = cleanText(element.text());
+        Element parent = element.parent();
+        if (parent == null) {
+            return current;
+        }
+        String parentText = cleanText(parent.text());
+        if (StringUtils.hasText(parentText)
+                && parentText.length() <= 250
+                && isBenefitDetailText(parentText)
+                && (isIncompleteBenefitText(current) || parent.select("img").size() > 0)) {
+            return parentText;
+        }
+        return current;
+    }
+
+    private boolean isIncompleteBenefitText(String text) {
+        if (!StringUtils.hasText(text)) {
+            return true;
+        }
+        String cleaned = cleanCouponPrefix(text);
+        return STANDALONE_DISCOUNT.matcher(cleaned).matches()
+                || CONDITION_ONLY.matcher(cleaned).matches()
+                || cleaned.matches(".*(콤보|세트|상품|주문|구매|결제).*시\\.?$");
+    }
+
     private Element findNearbyImage(Element element) {
         Element image = firstImage(element.select("img"));
         if (image != null) {
             return image;
         }
         Element parent = element.parent();
-        if (parent != null) {
+        int depth = 0;
+        while (parent != null && depth < 3) {
             image = firstImage(parent.select("img"));
             if (image != null) {
                 return image;
             }
+            parent = parent.parent();
+            depth++;
         }
         Element previous = element.previousElementSibling();
-        int depth = 0;
-        while (previous != null && depth < 3) {
+        depth = 0;
+        while (previous != null && depth < 4) {
             image = firstImage(previous.select("img"));
             if (image != null) {
                 return image;
@@ -188,14 +221,133 @@ public class HtmlTextExtractor {
         return images.isEmpty() ? null : images.first();
     }
 
-    private void appendImageSource(StringBuilder builder, String benefitText, String src, String alt, String title) {
+    private String resolveImageSrc(Element image, String baseUrl) {
+        String src = firstText(
+                image.absUrl("src"),
+                image.absUrl("data-src"),
+                image.absUrl("data-original"),
+                image.absUrl("data-lazy-src")
+        );
+        if (!StringUtils.hasText(src)) {
+            src = firstText(
+                    image.attr("src"),
+                    image.attr("data-src"),
+                    image.attr("data-original"),
+                    image.attr("data-lazy-src")
+            );
+        }
+        if (!StringUtils.hasText(src) && StringUtils.hasText(image.attr("srcset"))) {
+            src = firstSrcsetUrl(image.attr("srcset"));
+        }
+        return absolutize(src, baseUrl);
+    }
+
+    private String findInlineBackgroundImage(Element element, String baseUrl) {
+        Element current = element;
+        int depth = 0;
+        while (current != null && depth < 3) {
+            String style = current.attr("style");
+            Matcher matcher = INLINE_BACKGROUND_IMAGE.matcher(style);
+            if (matcher.find()) {
+                return absolutize(matcher.group(1), baseUrl);
+            }
+            current = current.parent();
+            depth++;
+        }
+        return null;
+    }
+
+    private String firstSrcsetUrl(String srcset) {
+        if (!StringUtils.hasText(srcset)) {
+            return null;
+        }
+        String first = srcset.split(",")[0].trim();
+        if (!StringUtils.hasText(first)) {
+            return null;
+        }
+        return first.split("\\s+")[0].trim();
+    }
+
+    private String absolutize(String src, String baseUrl) {
+        if (!StringUtils.hasText(src)) {
+            return null;
+        }
+        String trimmed = src.trim();
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || !StringUtils.hasText(baseUrl)) {
+            return trimmed;
+        }
+        try {
+            return URI.create(baseUrl).resolve(trimmed).toString();
+        } catch (IllegalArgumentException ignored) {
+            return trimmed;
+        }
+    }
+
+    private void appendImageSource(StringBuilder builder, String nearbyText, String src, Element image, Element parentLink) {
+        String alt = image == null ? "" : cleanText(image.attr("alt"));
+        String title = image == null ? "" : cleanText(image.attr("title"));
+        String ariaLabel = image == null ? "" : cleanText(image.attr("aria-label"));
+        String className = image == null ? "" : cleanText(image.className());
+        String parentHref = parentLink == null ? "" : parentLink.absUrl("href");
+        if (!StringUtils.hasText(parentHref) && parentLink != null) {
+            parentHref = parentLink.attr("href");
+        }
+        String parentTitle = parentLink == null ? "" : cleanText(parentLink.attr("title"));
+        String parentAriaLabel = parentLink == null ? "" : cleanText(parentLink.attr("aria-label"));
+        String possibleBrandName = possibleBrandName(alt, title, ariaLabel, parentTitle, parentAriaLabel);
+        String confidence = StringUtils.hasText(possibleBrandName) ? "high" : "low";
+
         if (builder.length() > 0) {
             builder.append("\n\n");
         }
-        builder.append("쿠폰: ").append(cleanCouponPrefix(benefitText)).append("\n");
+        builder.append("쿠폰: ").append(cleanCouponPrefix(nearbyText)).append("\n");
         builder.append("imgSrc: ").append(src).append("\n");
-        builder.append("imgAlt: ").append(StringUtils.hasText(alt) ? alt.trim() : "").append("\n");
-        builder.append("imgTitle: ").append(StringUtils.hasText(title) ? title.trim() : "");
+        builder.append("imgAlt: ").append(alt).append("\n");
+        builder.append("imgTitle: ").append(title).append("\n");
+        builder.append("imgAriaLabel: ").append(ariaLabel).append("\n");
+        builder.append("parentHref: ").append(parentHref).append("\n");
+        builder.append("parentTitle: ").append(parentTitle).append("\n");
+        builder.append("parentAriaLabel: ").append(parentAriaLabel).append("\n");
+        builder.append("nearbyText: ").append(truncate(cleanCouponPrefix(nearbyText), 200)).append("\n");
+        builder.append("className: ").append(className).append("\n");
+        builder.append("possibleBrandName: ").append(possibleBrandName).append("\n");
+        builder.append("confidence: ").append(confidence);
+    }
+
+    private String possibleBrandName(String... values) {
+        for (String value : values) {
+            if (looksLikeBrandName(value)) {
+                return value.trim();
+            }
+        }
+        return "";
+    }
+
+    private boolean looksLikeBrandName(String value) {
+        if (!StringUtils.hasText(value)) {
+            return false;
+        }
+        String trimmed = value.trim();
+        String lower = trimmed.toLowerCase();
+        if (trimmed.length() > 40) {
+            return false;
+        }
+        return !lower.contains("logo")
+                && !lower.contains("쿠폰")
+                && !lower.contains("할인")
+                && !lower.contains("무료")
+                && !lower.contains("증정")
+                && !lower.contains("이미지")
+                && !lower.contains("icon");
+    }
+
+    private String firstText(String... values) {
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 
     private String cleanText(String text) {
@@ -204,5 +356,12 @@ public class HtmlTextExtractor {
 
     private String cleanCouponPrefix(String text) {
         return cleanText(text).replaceAll("^\\[[^]]*]\\s*", "");
+    }
+
+    private String truncate(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength);
     }
 }

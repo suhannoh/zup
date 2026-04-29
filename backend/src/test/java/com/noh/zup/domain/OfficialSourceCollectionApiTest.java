@@ -28,6 +28,7 @@ import com.noh.zup.domain.collection.fetch.FetchResult;
 import com.noh.zup.domain.collection.fetch.OfficialSourceFetcher;
 import java.util.Map;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -182,6 +183,7 @@ class OfficialSourceCollectionApiTest {
 
         assertThat(benefitDetailText).contains("50% 할인", "10,000원 할인", "무료");
         assertThat(usageGuideText).contains("회원만 이용", "현금으로 교환", "타인에게 양도", "1년에 1번 지급");
+        assertThat(usageGuideText).doesNotContain("가입축하쿠폰", "최초 가입", "제휴가입", "회원 전환");
         assertThat(summary).contains("CGV", "VIPS");
         assertThat(usageGuideText.length()).isLessThanOrEqualTo(700);
 
@@ -275,7 +277,10 @@ class OfficialSourceCollectionApiTest {
         String benefitDetailImageSources = candidate.get("benefitDetailImageSources").asText();
         String summary = candidate.get("summary").asText();
 
-        assertThat(benefitDetailText).contains("매점 콤보 구매 시 50% 할인", "4만원 이상 주문 시 10,000원 할인");
+        assertThat(benefitDetailText)
+                .contains("50% 할인 (조건: 매점 콤보 구매 시)")
+                .contains("10,000원 할인 (조건: 4만원 이상 주문 시)");
+        assertThat(benefitDetailText).doesNotContain("\n50% 할인\n", "\n10,000원 할인\n");
         assertThat(benefitDetailText).doesNotContain("[생일축하]");
         assertThat(benefitDetailImageSources)
                 .contains("쿠폰: 매점 콤보 구매 시 50% 할인")
@@ -305,7 +310,7 @@ class OfficialSourceCollectionApiTest {
         String benefitDetailText = candidate.get("benefitDetailText").asText();
         String benefitDetailImageSources = candidate.get("benefitDetailImageSources").asText();
 
-        assertThat(benefitDetailText).contains("매점 콤보 구매 시 50% 할인");
+        assertThat(benefitDetailText).contains("50% 할인 (조건: 매점 콤보 구매 시)");
         assertThat(benefitDetailText).doesNotContain("CGV");
         assertThat(benefitDetailImageSources).contains("imgAlt: CGV");
     }
@@ -450,7 +455,13 @@ class OfficialSourceCollectionApiTest {
 
     @Test
     void fetchFailureCreatesFailedCollectionRun() throws Exception {
-        when(officialSourceFetcher.fetch(anyString())).thenReturn(FetchResult.failure(500, "HTTP status 500"));
+        when(officialSourceFetcher.fetch(anyString())).thenAnswer(invocation -> {
+            String url = invocation.getArgument(0);
+            if (url.endsWith("/robots.txt")) {
+                return FetchResult.failure(404, "HTTP status 404");
+            }
+            return FetchResult.failure(500, "HTTP status 500");
+        });
         Long brandId = brandRepository.findBySlug("cgv").orElseThrow().getId();
         Long sourceWatchId = createSourceWatch(brandId, "Fetch failure page");
 
@@ -463,6 +474,73 @@ class OfficialSourceCollectionApiTest {
                 .andExpect(jsonPath("$.data[0].status").value("FAILED"))
                 .andExpect(jsonPath("$.data[0].failureReason").value("FETCH_FAILED"))
                 .andExpect(jsonPath("$.data[0].errorMessage").value("HTTP status 500"));
+    }
+
+    @Test
+    void robotsTxtDisallowSkipsCollectionBeforeFetchingSourceHtml() throws Exception {
+        when(officialSourceFetcher.fetch(anyString())).thenAnswer(invocation -> {
+            String url = invocation.getArgument(0);
+            if (url.endsWith("/robots.txt")) {
+                return FetchResult.success(200, """
+                        User-agent: *
+                        Disallow: /official-benefit
+                        """);
+            }
+            return FetchResult.success(200, birthdayCouponHtml());
+        });
+        Long brandId = brandRepository.findBySlug("cgv").orElseThrow().getId();
+        Long sourceWatchId = createSourceWatch(brandId, "Robots disallowed page");
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fetched").value(false))
+                .andExpect(jsonPath("$.data.failureReason").value("ROBOTS_TXT_DISALLOWED"))
+                .andExpect(jsonPath("$.data.message").value("robots.txt 정책에 의해 수집이 차단되었습니다."));
+
+        mockMvc.perform(get("/api/v1/admin/source-watches/{id}/collection-runs", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].status").value("SKIPPED"))
+                .andExpect(jsonPath("$.data[0].failureReason").value("ROBOTS_TXT_DISALLOWED"))
+                .andExpect(jsonPath("$.data[0].errorMessage").value(org.hamcrest.Matchers.containsString("Disallow: /official-benefit")));
+    }
+
+    @Test
+    void robotsTxtAllowMoreSpecificPathAllowsCollection() throws Exception {
+        when(officialSourceFetcher.fetch(anyString())).thenAnswer(invocation -> {
+            String url = invocation.getArgument(0);
+            if (url.endsWith("/robots.txt")) {
+                return FetchResult.success(200, """
+                        User-agent: *
+                        Disallow: /
+                        Allow: /official-benefit
+                        """);
+            }
+            return FetchResult.success(200, birthdayCouponHtml());
+        });
+        Long brandId = brandRepository.findBySlug("cgv").orElseThrow().getId();
+        Long sourceWatchId = createSourceWatch(brandId, "Robots allowed page");
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fetched").value(true))
+                .andExpect(jsonPath("$.data.candidateCount").value(1));
+    }
+
+    @Test
+    void robotsTxtFetchFailureSkipsCollectionConservatively() throws Exception {
+        when(officialSourceFetcher.fetch(anyString())).thenReturn(FetchResult.failure(0, "I/O error while fetching source"));
+        Long brandId = brandRepository.findBySlug("cgv").orElseThrow().getId();
+        Long sourceWatchId = createSourceWatch(brandId, "Robots fetch failed page");
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fetched").value(false))
+                .andExpect(jsonPath("$.data.failureReason").value("ROBOTS_TXT_FETCH_FAILED"));
+
+        mockMvc.perform(get("/api/v1/admin/source-watches/{id}/collection-runs", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].status").value("SKIPPED"))
+                .andExpect(jsonPath("$.data[0].failureReason").value("ROBOTS_TXT_FETCH_FAILED"));
     }
 
     @Test
@@ -488,9 +566,16 @@ class OfficialSourceCollectionApiTest {
     void dashboardIncludesCollectionSummary() throws Exception {
         Long brandId = brandRepository.findBySlug("starbucks").orElseThrow().getId();
 
-        when(officialSourceFetcher.fetch(anyString()))
-                .thenReturn(FetchResult.success(200, birthdayCouponHtml()))
-                .thenReturn(FetchResult.failure(500, "HTTP status 500"));
+        AtomicInteger sourceFetchCount = new AtomicInteger();
+        when(officialSourceFetcher.fetch(anyString())).thenAnswer(invocation -> {
+            String url = invocation.getArgument(0);
+            if (url.endsWith("/robots.txt")) {
+                return FetchResult.failure(404, "HTTP status 404");
+            }
+            return sourceFetchCount.getAndIncrement() == 0
+                    ? FetchResult.success(200, birthdayCouponHtml())
+                    : FetchResult.failure(500, "HTTP status 500");
+        });
 
         Long successSourceWatchId = createSourceWatch(brandId, "Dashboard success page");
         Long failedSourceWatchId = createSourceWatch(brandId, "Dashboard failed page");
@@ -636,6 +721,58 @@ class OfficialSourceCollectionApiTest {
                 .andExpect(jsonPath("$.message").value("Rejected candidate cannot be approved"));
     }
 
+    @Test
+    void approvedCandidateAppearsOnPublicBrandPageOnlyAfterPublished() throws Exception {
+        when(officialSourceFetcher.fetch(anyString())).thenReturn(FetchResult.success(200, cjOneBirthdayCouponHtml()));
+        Long brandId = ensureBrand("CJ ONE", "cj-one-publish-flow", "movie-culture");
+        Long sourceWatchId = createSourceWatch(brandId, "CJ ONE publish flow page");
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.candidateCount").value(1));
+
+        long candidateId = getCandidateIdBySourceWatch(sourceWatchId);
+        MvcResult approveResult = mockMvc.perform(post("/api/v1/admin/benefit-candidates/{id}/approve", candidateId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "detailItems", List.of(
+                                        Map.of(
+                                                "title", "매점 콤보 구매 시 50% 할인",
+                                                "displayOrder", 1
+                                        )
+                                )
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.verificationStatus").value("VERIFIED"))
+                .andReturn();
+
+        long benefitId = objectMapper.readTree(approveResult.getResponse().getContentAsByteArray())
+                .get("data")
+                .get("benefitId")
+                .asLong();
+
+        mockMvc.perform(get("/api/v1/brands/cj-one-publish-flow"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.benefits", empty()));
+
+        mockMvc.perform(patch("/api/v1/admin/benefits/{id}/status", benefitId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "verificationStatus", "PUBLISHED",
+                                "lastVerifiedAt", "2026-04-29",
+                                "memo", "publish flow test"
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.verificationStatus").value("PUBLISHED"));
+
+        mockMvc.perform(get("/api/v1/brands/cj-one-publish-flow"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.benefits", hasSize(1)))
+                .andExpect(jsonPath("$.data.benefits[0].id").value(benefitId))
+                .andExpect(jsonPath("$.data.benefits[0].detailItems", hasSize(1)))
+                .andExpect(jsonPath("$.data.benefits[0].detailItems[0].title").value("매점 콤보 구매 시 50% 할인"));
+    }
+
     private Long createSourceWatch(Long brandId, String title) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/admin/source-watches")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -722,6 +859,7 @@ class OfficialSourceCollectionApiTest {
                                 <h2>이용안내</h2>
                                 <p>CJ ONE 회원만 이용 가능합니다.</p>
                                 <p>CJ ONE 쿠폰은 현금으로 교환 및 타인에게 양도할 수 없습니다.</p>
+                                <p>가입축하쿠폰은 최초 가입 시에만 발급되며, 기 가입된 회원이 제휴가입 및 아이디 등록을 통해 회원 전환을 하는 경우에는 추가 발급되지 않습니다.</p>
                                 <p>생일축하쿠폰은 1년에 1번 지급되며, 한번 발급되면 추가 발급되지 않습니다.</p>
                                 <p>CJ ONE 회원정보에 등록된 생년월일을 기준으로 쿠폰이 발급됩니다.</p>
                             </section>
@@ -740,11 +878,13 @@ class OfficialSourceCollectionApiTest {
                             <section class="coupon-list">
                                 <div class="coupon-row">
                                     <img src="/images/cgv-logo.png" alt="" />
-                                    <p>[생일축하] 매점 콤보 구매 시 50% 할인</p>
+                                    <p>[생일축하] 매점 콤보 구매 시</p>
+                                    <p>50% 할인</p>
                                 </div>
                                 <div class="coupon-row">
                                     <img src="/images/vips-logo.png" alt="" />
-                                    <p>[생일축하] 4만원 이상 주문 시 10,000원 할인</p>
+                                    <p>[생일축하] 4만원 이상 주문 시</p>
+                                    <p>10,000원 할인</p>
                                 </div>
                             </section>
                         </main>
@@ -762,7 +902,8 @@ class OfficialSourceCollectionApiTest {
                             <section class="coupon-list">
                                 <div class="coupon-row">
                                     <img src="/images/cgv-logo.png" alt="CGV" title="" />
-                                    <p>[생일축하] 매점 콤보 구매 시 50% 할인</p>
+                                    <p>[생일축하] 매점 콤보 구매 시</p>
+                                    <p>50% 할인</p>
                                 </div>
                             </section>
                         </main>

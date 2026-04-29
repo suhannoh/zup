@@ -31,6 +31,8 @@ app:
       lock-ttl-seconds: ${COLLECTION_SCHEDULER_LOCK_TTL_SECONDS:120}
       default-fetch-interval-minutes: ${COLLECTION_DEFAULT_FETCH_INTERVAL_MINUTES:1440}
       failure-retry-minutes: ${COLLECTION_FAILURE_RETRY_MINUTES:180}
+  crawler:
+    user-agent: ${CRAWLER_USER_AGENT:ZupOfficialSourceCollector/1.0}
   admin:
     email: ${ADMIN_EMAIL:admin@zup.local}
     password: ${ADMIN_PASSWORD:admin1234}

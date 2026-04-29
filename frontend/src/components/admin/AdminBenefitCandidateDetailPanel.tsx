@@ -55,10 +55,22 @@ type CouponImageSource = {
   imgSrc: string;
   imgAlt: string;
   imgTitle: string;
+  imgAriaLabel: string;
+  parentHref: string;
+  parentTitle: string;
+  parentAriaLabel: string;
+  nearbyText: string;
+  possibleBrandName: string;
+  confidence: string;
 };
 
-function truncate(value: string, maxLength: number) {
-  return value.length <= maxLength ? value : value.slice(0, maxLength);
+function safeText(value: string | null | undefined, fallback = "") {
+  return value ?? fallback;
+}
+
+function truncate(value: string | null | undefined, maxLength: number) {
+  const text = safeText(value);
+  return text.length <= maxLength ? text : text.slice(0, maxLength);
 }
 
 function normalizeOptional(value: string) {
@@ -75,14 +87,17 @@ function parseDetailItems(value?: string | null): DetailItemFormState[] {
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean)
-      .map((title, index) => ({
-        brandName: "",
-        title,
-        description: "",
-        conditionText: "",
-        imageUrl: "",
-        displayOrder: index + 1,
-      }));
+      .map((line, index) => {
+        const conditionMatch = line.match(/^(.+?)\s*\((조건|사용 조건):\s*(.+)\)$/);
+        return {
+          brandName: "",
+          title: conditionMatch ? conditionMatch[1].trim() : line,
+          description: "",
+          conditionText: conditionMatch ? conditionMatch[3].trim() : "",
+          imageUrl: "",
+          displayOrder: index + 1,
+        };
+      });
 }
 
 function parseCouponImageSources(value?: string | null): CouponImageSource[] {
@@ -94,29 +109,37 @@ function parseCouponImageSources(value?: string | null): CouponImageSource[] {
       .split(/\n\s*\n/)
       .map((block) => {
         const lines = block.split("\n");
+        const read = (label: string) => lines.find((line) => line.startsWith(`${label}: `))?.replace(`${label}: `, "").trim() ?? "";
         return {
           coupon: lines.find((line) => line.startsWith("쿠폰: "))?.replace("쿠폰: ", "").trim() ?? "",
-          imgSrc: lines.find((line) => line.startsWith("imgSrc: "))?.replace("imgSrc: ", "").trim() ?? "",
-          imgAlt: lines.find((line) => line.startsWith("imgAlt: "))?.replace("imgAlt: ", "").trim() ?? "",
-          imgTitle: lines.find((line) => line.startsWith("imgTitle: "))?.replace("imgTitle: ", "").trim() ?? "",
+          imgSrc: read("imgSrc"),
+          imgAlt: read("imgAlt"),
+          imgTitle: read("imgTitle"),
+          imgAriaLabel: lines.find((line) => line.startsWith("imgAriaLabel: "))?.replace("imgAriaLabel: ", "").trim() ?? "",
+          parentHref: lines.find((line) => line.startsWith("parentHref: "))?.replace("parentHref: ", "").trim() ?? "",
+          parentTitle: lines.find((line) => line.startsWith("parentTitle: "))?.replace("parentTitle: ", "").trim() ?? "",
+          parentAriaLabel: lines.find((line) => line.startsWith("parentAriaLabel: "))?.replace("parentAriaLabel: ", "").trim() ?? "",
+          nearbyText: lines.find((line) => line.startsWith("nearbyText: "))?.replace("nearbyText: ", "").trim() ?? "",
+          possibleBrandName: lines.find((line) => line.startsWith("possibleBrandName: "))?.replace("possibleBrandName: ", "").trim() ?? "",
+          confidence: lines.find((line) => line.startsWith("confidence: "))?.replace("confidence: ", "").trim() ?? "",
         };
       })
       .filter((item) => item.imgSrc);
 }
 
 function toApproveForm(candidate: BenefitCandidate): ApproveFormState {
-  const usageCondition = candidate.usageGuideText || candidate.evidenceText;
+  const usageCondition = candidate.usageGuideText || candidate.evidenceText || "";
 
   return {
-    title: candidate.title,
+    title: safeText(candidate.title),
     summary: truncate(candidate.summary, 300),
-    benefitType: candidate.benefitType,
+    benefitType: candidate.benefitType ?? "COUPON",
     occasionType: candidate.occasionType ?? "BIRTHDAY",
-    birthdayTimingType: candidate.birthdayTimingType,
+    birthdayTimingType: candidate.birthdayTimingType ?? "UNKNOWN",
     birthdayTimingDescription: "",
-    requiresApp: candidate.requiresApp,
-    requiresSignup: candidate.requiresSignup,
-    requiresMembership: candidate.requiresMembership,
+    requiresApp: Boolean(candidate.requiresApp),
+    requiresSignup: Boolean(candidate.requiresSignup),
+    requiresMembership: Boolean(candidate.requiresMembership),
     minimumPurchaseDescription: "쿠폰별 최소 구매 금액과 사용 조건은 각 쿠폰 상세 안내를 확인해야 합니다.",
     usageCondition: truncate(usageCondition, 700),
     adminMemo: candidate.benefitDetailImageSources
@@ -158,13 +181,18 @@ function formatDateTime(value: string | null) {
     return "-";
   }
 
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
   return new Intl.DateTimeFormat("ko-KR", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(new Date(value));
+  }).format(date);
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -199,7 +227,7 @@ export function AdminBenefitCandidateDetailPanel({ candidateId }: { candidateId:
       ]);
 
       setCandidate(candidateData);
-      setSourceWatches(sourceWatchData);
+      setSourceWatches(sourceWatchData ?? []);
       setApproveForm(toApproveForm(candidateData));
     } catch (loadError) {
       setError(getErrorMessage(loadError, "혜택 후보 상세를 불러오지 못했습니다."));
@@ -396,16 +424,16 @@ export function AdminBenefitCandidateDetailPanel({ candidateId }: { candidateId:
               <h2 className="text-lg font-bold text-neutral-950">출처 정보</h2>
               <dl className="mt-4 grid gap-4 text-sm lg:grid-cols-4">
                 <Info label="수집 출처명" value={sourceWatch?.title ?? `#${candidate.sourceWatchId}`} />
-                <Info label="브랜드" value={candidate.brandName} />
+              <Info label="브랜드" value={safeText(candidate.brandName, "-")} />
                 <Info label="수집 URL" value={sourceWatch?.url ?? "-"} wide />
                 <Info label="발견 일시" value={formatDateTime(candidate.createdAt)} />
-                <Info label="신뢰도" value={Number(candidate.confidence).toFixed(2)} />
+              <Info label="신뢰도" value={Number(candidate.confidence ?? 0).toFixed(2)} />
               </dl>
             </section>
 
             <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
               <h2 className="text-lg font-bold text-neutral-950">요약</h2>
-              <p className="mt-3 max-w-5xl text-sm leading-6 text-neutral-700">{candidate.summary}</p>
+            <p className="mt-3 max-w-5xl text-sm leading-6 text-neutral-700">{safeText(candidate.summary, "-")}</p>
 
               <div className="mt-5 grid gap-4 xl:grid-cols-2">
                 <ListBox title="구체 혜택 추정" lines={benefitLines} empty="구체 혜택 추정 없음" />
@@ -417,7 +445,7 @@ export function AdminBenefitCandidateDetailPanel({ candidateId }: { candidateId:
               <details>
                 <summary className="cursor-pointer text-lg font-bold text-neutral-950">근거 원문 펼쳐보기</summary>
                 <pre className="mt-4 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-neutral-50 p-4 text-sm leading-6 text-neutral-700">
-                {candidate.evidenceText}
+                {safeText(candidate.evidenceText, "-")}
               </pre>
               </details>
             </section>
@@ -602,8 +630,16 @@ export function AdminBenefitCandidateDetailPanel({ candidateId }: { candidateId:
 function CouponImageSources({ sources }: { sources: CouponImageSource[] }) {
   if (sources.length === 0) {
     return (
-        <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-500">
-          이미지 소스 없음
+        <div className="space-y-1 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-600">
+          <p className="font-medium text-neutral-800">이미지 메타데이터가 없습니다.</p>
+          <p>
+            현재 후보 스냅샷에 저장된 쿠폰 이미지 소스가 없습니다. 기존 스냅샷은 원본 HTML을 보관하지 않으므로
+            후보 재생성만으로 새 이미지 소스를 복구할 수 없습니다.
+          </p>
+          <p>
+            최신 HTML을 다시 수집했는데도 비어 있다면, 해당 사이트가 JavaScript 렌더링 후 로고 이미지를 삽입하거나
+            alt/title 같은 접근성 단서를 제공하지 않는 구조일 수 있습니다.
+          </p>
         </div>
     );
   }
@@ -629,6 +665,12 @@ function CouponImageSources({ sources }: { sources: CouponImageSource[] }) {
                 </p>
                 <p className="mt-1 text-neutral-700">alt: {source.imgAlt || "-"}</p>
                 <p className="mt-1 text-neutral-700">title: {source.imgTitle || "-"}</p>
+                <p className="mt-1 text-neutral-700">aria-label: {source.imgAriaLabel || "-"}</p>
+                <p className="mt-1 break-all text-neutral-700">parent href: {source.parentHref || "-"}</p>
+                <p className="mt-1 text-neutral-700">parent title: {source.parentTitle || source.parentAriaLabel || "-"}</p>
+                <p className="mt-1 text-neutral-700">주변 텍스트: {source.nearbyText || "-"}</p>
+                <p className="mt-1 text-neutral-700">추정 브랜드명: {source.possibleBrandName || "-"}</p>
+                <p className="mt-1 text-neutral-700">신뢰도: {source.confidence || "-"}</p>
                 <button
                     className="mt-2 rounded-lg border border-neutral-200 px-3 py-1 text-xs font-semibold"
                     type="button"

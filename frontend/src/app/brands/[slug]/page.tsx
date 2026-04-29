@@ -66,6 +66,8 @@ export default async function BrandDetailPage({ params }: BrandDetailPageProps) 
     );
   }
 
+  const benefits = brand.benefits ?? [];
+
   return (
     <div className="space-y-10">
       <section className="rounded-xl border border-border bg-white p-6">
@@ -121,9 +123,9 @@ export default async function BrandDetailPage({ params }: BrandDetailPageProps) 
           title={`${brand.name} 공개 혜택`}
           description="공식 출처 검수를 거쳐 공개된 생일 혜택만 표시합니다."
         />
-        {brand.benefits.length > 0 ? (
+        {benefits.length > 0 ? (
           <div className="grid gap-4">
-            {brand.benefits.map((benefit) => (
+            {benefits.map((benefit) => (
               <BenefitCard
                 key={benefit.id}
                 benefit={benefit}
@@ -140,7 +142,8 @@ export default async function BrandDetailPage({ params }: BrandDetailPageProps) 
       </section>
 
       <p className="border-t border-border pt-6 text-sm leading-7 text-neutral-500">
-        브랜드 정책은 수시로 변경될 수 있습니다. 사용 전 공식 앱 또는 공식 페이지에서 최종 확인해 주세요.
+        Zup은 각 브랜드의 공식 서비스가 아니며, 공개된 공식 출처를 바탕으로 혜택 정보를 정리해 제공합니다.
+        브랜드 정책은 수시로 변경될 수 있으므로 사용 전 공식 웹사이트 또는 앱에서 최종 확인해 주세요.
       </p>
     </div>
   );
