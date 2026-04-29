@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { getAdminBenefits, getAdminDashboard } from "@/lib/api/adminApi";
+import { getAdminBenefits, getAdminDashboard, getSourceWatches } from "@/lib/api/adminApi";
 import type { AdminBenefit } from "@/types/adminBenefit";
 import type { AdminDashboard, CollectionSummary } from "@/types/report";
+import type { SourceWatch } from "@/types/sourceWatch";
 
 type DashboardCard = {
   label: string;
@@ -60,6 +61,7 @@ function formatDateTime(value?: string | null) {
 export function AdminDashboardPanel() {
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
   const [publishedBenefits, setPublishedBenefits] = useState<AdminBenefit[]>([]);
+  const [sourceWatches, setSourceWatches] = useState<SourceWatch[]>([]);
   const [publishedKeyword, setPublishedKeyword] = useState("");
   const debouncedPublishedKeyword = useDebouncedValue(publishedKeyword, 300);
   const [loading, setLoading] = useState(true);
@@ -75,8 +77,10 @@ export function AdminDashboardPanel() {
 
       try {
         const data = await getAdminDashboard();
+        const watches = await getSourceWatches();
         if (active) {
           setDashboard(data);
+          setSourceWatches(watches ?? []);
         }
       } catch {
         if (active) {
@@ -132,6 +136,19 @@ export function AdminDashboardPanel() {
   const collectionSummary = dashboard?.collectionSummary ?? emptyCollectionSummary;
   const recentFailedRuns = collectionSummary.recentFailedRuns ?? [];
   const filteredPublishedBenefits = useMemo(() => publishedBenefits, [publishedBenefits]);
+  const manualReviewSources = sourceWatches.filter((source) =>
+    ["BLOCKED_BY_ROBOTS", "BLOCKED_BY_TERMS", "LOGIN_REQUIRED", "UNKNOWN_NEEDS_REVIEW", "MANUAL_REVIEW_ONLY"].includes(source.collectionPermissionStatus)
+  );
+  const termsReviewSources = sourceWatches.filter((source) => source.termsCheckStatus === "NOT_CHECKED" || source.termsCheckStatus === "NEEDS_REVIEW");
+  const stalePublishedBenefits = publishedBenefits.filter((benefit) => {
+    if (!benefit.lastVerifiedAt) {
+      return true;
+    }
+    const checkedAt = new Date(benefit.lastVerifiedAt);
+    const threshold = new Date();
+    threshold.setDate(threshold.getDate() - 30);
+    return checkedAt <= threshold;
+  });
 
   const operationCards: DashboardCard[] = [
     { label: "전체 수집 URL", value: collectionSummary.totalSourceWatchCount },
@@ -172,10 +189,47 @@ export function AdminDashboardPanel() {
         <h2 className="text-lg font-bold">빠른 작업</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <QuickAction href="/admin/benefit-candidates" title="새 혜택 검수" description="아직 사용자에게 보이지 않는 새 수집 후보를 검수합니다." />
+          <QuickAction href="/admin/benefits/new" title="새 혜택 직접 등록" description="자동 수집 없이 공식 출처를 직접 확인한 혜택을 등록합니다." />
           <QuickAction href="/admin/benefits" title="공개 혜택 수정" description="사용자 화면에 보이는 혜택 문구, 대표 혜택, 공개 상태를 바로 수정합니다." />
           <QuickAction href="/admin/source-watches" title="공식 출처 수집 관리" description="수집 URL을 등록하고 수집 실행을 관리하세요." />
-          <QuickAction href="/admin/collection-runs" title="수집 실행 이력" description="수집 성공, 실패, 스킵 이력을 확인하세요." />
         </div>
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-3">
+        <DashboardList
+          empty="수동 검수 필요 출처가 없습니다."
+          items={manualReviewSources.slice(0, 5).map((source) => ({
+            id: source.id,
+            title: source.title,
+            meta: `${source.brandName} · ${source.collectionPermissionStatus}`,
+            href: `/admin/source-watches?sourceWatchId=${source.id}`,
+            externalHref: source.url,
+            benefitHref: `/admin/benefits?keyword=${encodeURIComponent(source.brandName)}`,
+          }))}
+          title="수동 검수 필요 출처"
+        />
+        <DashboardList
+          empty="정책 확인 필요 출처가 없습니다."
+          items={termsReviewSources.slice(0, 5).map((source) => ({
+            id: source.id,
+            title: source.title,
+            meta: `${source.brandName} · termsCheckStatus=${source.termsCheckStatus}`,
+            href: `/admin/source-watches?sourceWatchId=${source.id}`,
+            externalHref: source.url,
+            benefitHref: `/admin/benefits?keyword=${encodeURIComponent(source.brandName)}`,
+          }))}
+          title="정책 확인 필요 출처"
+        />
+        <DashboardList
+          empty="재확인 필요 공개 혜택이 없습니다."
+          items={stalePublishedBenefits.slice(0, 5).map((benefit) => ({
+            id: benefit.id,
+            title: benefit.title,
+            meta: `${benefit.brandName} · 최근 확인일 ${benefit.lastVerifiedAt ?? "없음"}`,
+            href: `/admin/benefits/${benefit.id}`,
+          }))}
+          title="재확인 필요 혜택"
+        />
       </section>
 
       <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
@@ -287,5 +341,48 @@ function QuickAction({ description, href, title }: { description: string; href: 
       <h3 className="text-base font-bold text-neutral-950">{title}</h3>
       <p className="mt-2 text-sm leading-6 text-neutral-600">{description}</p>
     </Link>
+  );
+}
+
+function DashboardList({
+  empty,
+  items,
+  title,
+}: {
+  empty: string;
+  items: { id: number; title: string; meta: string; href: string; externalHref?: string; benefitHref?: string }[];
+  title: string;
+}) {
+  return (
+    <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+      <h2 className="text-lg font-bold">{title}</h2>
+      {items.length === 0 ? (
+        <p className="mt-3 rounded-lg bg-neutral-50 p-4 text-sm text-neutral-600">{empty}</p>
+      ) : (
+        <div className="mt-3 space-y-3">
+          {items.map((item) => (
+            <article key={item.id} className="rounded-xl border border-neutral-200 p-4">
+              <h3 className="text-sm font-bold text-neutral-950">{item.title}</h3>
+              <p className="mt-1 text-xs text-neutral-500">{item.meta}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {item.externalHref ? (
+                  <a className="rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-semibold" href={item.externalHref} target="_blank" rel="noreferrer">
+                    공식 페이지 열기
+                  </a>
+                ) : null}
+                <Link className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white" href={item.href}>
+                  관리로 이동
+                </Link>
+                {item.benefitHref ? (
+                  <Link className="rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-semibold" href={item.benefitHref}>
+                    공개 혜택 관리
+                  </Link>
+                ) : null}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

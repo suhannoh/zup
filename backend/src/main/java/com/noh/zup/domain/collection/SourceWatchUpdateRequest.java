@@ -7,6 +7,13 @@ public record SourceWatchUpdateRequest(
         SourceType sourceType,
         @Size(max = 300) String title,
         @Size(max = 1000) String url,
-        Boolean isActive
+        Boolean isActive,
+        Boolean loginRequired,
+        RobotsCheckStatus robotsCheckStatus,
+        TermsCheckStatus termsCheckStatus,
+        CollectionMethod collectionMethod,
+        CollectionPermissionStatus collectionPermissionStatus,
+        @Size(max = 2000) String policyCheckNote,
+        @Size(max = 2000) String manualVerificationNote
 ) {
 }

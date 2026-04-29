@@ -27,6 +27,7 @@ class SourceWatchServiceTest {
     private final PageSnapshotRepository pageSnapshotRepository = mock(PageSnapshotRepository.class);
     private final BrandRepository brandRepository = mock(BrandRepository.class);
     private final CollectionRunRepository collectionRunRepository = mock(CollectionRunRepository.class);
+    private final BenefitCandidateRepository benefitCandidateRepository = mock(BenefitCandidateRepository.class);
     private final OfficialSourceFetcher officialSourceFetcher = mock(OfficialSourceFetcher.class);
     private final RobotsTxtChecker robotsTxtChecker = mock(RobotsTxtChecker.class);
     private final HtmlTextExtractor htmlTextExtractor = mock(HtmlTextExtractor.class);
@@ -42,6 +43,7 @@ class SourceWatchServiceTest {
                 pageSnapshotRepository,
                 brandRepository,
                 collectionRunRepository,
+                benefitCandidateRepository,
                 officialSourceFetcher,
                 robotsTxtChecker,
                 htmlTextExtractor,
@@ -59,6 +61,9 @@ class SourceWatchServiceTest {
         when(targetSourceWatch.getId()).thenReturn(1L);
         when(targetSourceWatch.getIsActive()).thenReturn(true);
         when(targetSourceWatch.getUrl()).thenReturn("https://m.cjone.com/events/birthday");
+        when(targetSourceWatch.getRobotsCheckStatus()).thenReturn(RobotsCheckStatus.ALLOWED);
+        when(targetSourceWatch.getTermsCheckStatus()).thenReturn(TermsCheckStatus.NO_RESTRICTION_FOUND);
+        when(targetSourceWatch.getCollectionPermissionStatus()).thenReturn(CollectionPermissionStatus.ALLOWED_TO_COLLECT);
         when(sourceWatchRepository.findById(1L)).thenReturn(Optional.of(targetSourceWatch));
         when(collectionRedisLock.tryLock(anyLong(), any(Duration.class)))
                 .thenReturn(Optional.of(new CollectionLock("lock:1", "token")));

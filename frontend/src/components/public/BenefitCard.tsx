@@ -53,8 +53,10 @@ export function BenefitCard({ benefit, reportHref }: BenefitCardProps) {
   const conditionLines = splitLines(benefit.conditionSummary);
   const cautionLines = splitLines(benefit.caution);
   const detailItems = benefit.detailItems ?? [];
-  const sourceLabel = primarySource?.sourceTitle ?? primarySource?.sourceUrl ?? "공식 출처 확인";
-  const checkedAt = primarySource?.sourceCheckedAt ?? benefit.lastVerifiedAt;
+  const sourceUrl = primarySource?.officialSourceUrl ?? primarySource?.sourceUrl ?? null;
+  const sourceLabel = primarySource?.sourceTitle ?? sourceUrl ?? "공식 출처";
+  const checkedAt = primarySource?.lastVerifiedDate ?? primarySource?.sourceCheckedAt ?? benefit.lastVerifiedAt;
+  const collectionMethod = primarySource?.collectionMethod;
 
   return (
     <article className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
@@ -65,7 +67,7 @@ export function BenefitCard({ benefit, reportHref }: BenefitCardProps) {
             <h3 className="mt-1 text-2xl font-bold leading-tight text-neutral-950">{benefit.title}</h3>
           </div>
           <span className="w-fit rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 ring-1 ring-green-100">
-            공식 확인
+            공식 출처 기준 정보
           </span>
         </div>
         <p className="mt-4 max-w-3xl text-sm leading-7 text-neutral-700">{benefit.summary}</p>
@@ -166,24 +168,49 @@ export function BenefitCard({ benefit, reportHref }: BenefitCardProps) {
         ) : null}
 
         <div className="mt-5 border-t border-border pt-4 text-sm">
+          <p className="mb-3 text-xs font-semibold text-neutral-500">정보 변경 가능 · 사용 전 공식 앱/홈페이지 확인</p>
           <div className="flex flex-wrap items-center gap-3">
-            {primarySource ? (
+            {sourceUrl ? (
               <a
                 className="font-semibold text-accent hover:text-blue-700"
-                href={primarySource.sourceUrl}
+                href={sourceUrl}
                 target="_blank"
                 rel="noreferrer"
               >
-                공식 출처 확인: {sourceLabel}
+                공식 페이지에서 확인하기: {sourceLabel}
               </a>
             ) : (
-              <span className="text-neutral-500">공식 출처 확인 예정</span>
+              <span className="text-neutral-500">공식 출처 기준으로 정리된 혜택 정보입니다.</span>
             )}
             {checkedAt ? <span className="text-neutral-500">최근 확인일: {checkedAt}</span> : null}
             {reportHref ? (
               <a className="font-semibold text-neutral-500 hover:text-accent" href={reportHref}>
                 정보 수정 제보
               </a>
+            ) : null}
+          </div>
+          <div className="mt-4 rounded-lg bg-neutral-50 p-4 text-sm leading-6 text-neutral-700">
+            {sourceUrl && checkedAt ? (
+              collectionMethod === "MANUAL_VERIFIED" ? (
+                <p>
+                  이 정보는 관리자가 공식 페이지를 직접 확인해 수동으로 정리한 정보입니다. 자동 수집 정보가 아니며, 최신 내용은 공식 페이지에서 확인해 주세요.
+                </p>
+              ) : (
+                <p>
+                  이 혜택 정보는 공식 출처를 기준으로 Zup이 요약한 정보입니다. 혜택 내용, 사용 조건, 유효기간은 브랜드 정책에 따라 변경되거나 종료될 수 있습니다.
+                </p>
+              )
+            ) : (
+              <p>공식 출처 기준으로 정리된 혜택 정보입니다. 최신 내용은 공식 앱 또는 홈페이지에서 확인해 주세요.</p>
+            )}
+            <p className="mt-2">
+              Zup은 해당 브랜드와 공식 제휴 또는 파트너십 관계가 없으며, 쿠폰을 직접 발급하거나 판매하지 않습니다.
+              실제 쿠폰 발급 및 사용 가능 여부는 반드시 공식 앱 또는 홈페이지에서 확인해 주세요.
+            </p>
+            {collectionMethod ? (
+              <p className="mt-2 text-xs text-neutral-500">
+                확인 방식: {collectionMethod === "AUTO_COLLECTED" ? "허용된 공식 출처에서 자동 후보 생성 후 관리자 검수" : collectionMethod === "MANUAL_VERIFIED" ? "관리자 수동 검수" : "관리자 검수"}
+              </p>
             ) : null}
           </div>
         </div>

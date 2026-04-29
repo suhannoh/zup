@@ -64,6 +64,21 @@ type CouponImageSource = {
   confidence: string;
 };
 
+const reviewChecklistLabels = [
+  "공식 URL에서 직접 확인했는가?",
+  "robots.txt/수집 정책 상태를 확인했는가?",
+  "약관상 자동 수집 또는 재배포 금지 여부를 확인했는가?",
+  "원문 문장을 그대로 복사하지 않았는가?",
+  "브랜드 로고, 쿠폰 이미지, 배너 이미지를 사용하지 않았는가?",
+  "브랜드명, 혜택명, 핵심 조건 중심으로 짧게 요약했는가?",
+  "최종 확인일을 입력했는가?",
+  "공식 출처 URL을 입력했는가?",
+  "\"공식\", \"제휴\", \"인증\", \"보장\", \"확정\" 같은 오인 표현을 쓰지 않았는가?",
+  "사용 전 공식 앱/홈페이지 확인이 필요하다는 안내가 있는가?",
+];
+
+const prohibitedTerms = ["공식 쿠폰", "공식 제휴", "제휴 혜택", "인증 혜택", "보장", "확정", "무조건", "반드시 제공", "Zup 단독", "최신 보장", "100% 사용 가능"];
+
 function safeText(value: string | null | undefined, fallback = "") {
   return value ?? fallback;
 }
@@ -213,6 +228,7 @@ export function AdminBenefitCandidateDetailPanel({ candidateId }: { candidateId:
   const [savingStatus, setSavingStatus] = useState(false);
   const [approving, setApproving] = useState(false);
   const [approveResult, setApproveResult] = useState<BenefitCandidateApproveResponse | null>(null);
+  const [reviewChecks, setReviewChecks] = useState<boolean[]>(() => reviewChecklistLabels.map(() => false));
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -245,7 +261,10 @@ export function AdminBenefitCandidateDetailPanel({ candidateId }: { candidateId:
       [candidate?.sourceWatchId, sourceWatches]
   );
 
-  const approveDisabled = !candidate || candidate.status === "REJECTED" || candidate.approvedBenefitId !== null;
+  const approveText = approveForm ? `${approveForm.title}\n${approveForm.summary}\n${approveForm.usageCondition}\n${approveForm.adminMemo}` : "";
+  const foundProhibitedTerms = prohibitedTerms.filter((term) => approveText.includes(term));
+  const checklistComplete = reviewChecks.every(Boolean);
+  const approveDisabled = !candidate || candidate.status === "REJECTED" || candidate.approvedBenefitId !== null || !checklistComplete || foundProhibitedTerms.length > 0;
 
   async function reloadCandidate() {
     const next = await getBenefitCandidate(candidateId);
@@ -392,6 +411,14 @@ export function AdminBenefitCandidateDetailPanel({ candidateId }: { candidateId:
       .split(/\. |\n/)
       .map((line) => line.replace(/\.$/, "").trim())
       .filter(Boolean);
+  const warningLines = (candidate.extractionWarnings ?? "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+  const excludedLines = (candidate.excludedTexts ?? "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
 
   return (
       <section className="w-full space-y-6">
@@ -402,6 +429,11 @@ export function AdminBenefitCandidateDetailPanel({ candidateId }: { candidateId:
               <span className={`rounded-full px-3 py-1 text-xs font-semibold ${CANDIDATE_STATUS_CLASS[candidate.status]}`}>
               {CANDIDATE_STATUS_LABELS[candidate.status]}
             </span>
+              {candidate.needsManualReview ? (
+                <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
+                  수동 재검토 필요
+                </span>
+              ) : null}
             </div>
             <p className="mt-2 text-sm text-neutral-600">
               수집 근거를 확인하고 공개 화면에 표시할 혜택 상세 리스트를 정리하세요.
@@ -417,6 +449,11 @@ export function AdminBenefitCandidateDetailPanel({ candidateId }: { candidateId:
 
         {message ? <Notice tone="success">{message}</Notice> : null}
         {error ? <Notice tone="error">{error}</Notice> : null}
+        {candidate.needsManualReview ? (
+          <Notice tone="warning">
+            이 후보는 현재 자동 수집이 차단된 출처에서 생성된 항목입니다. 공식 페이지를 직접 확인한 뒤 내용을 검수하거나 반려해 주세요.
+          </Notice>
+        ) : null}
 
         <div className="grid w-full gap-6 2xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="min-w-0 space-y-5">
@@ -442,6 +479,18 @@ export function AdminBenefitCandidateDetailPanel({ candidateId }: { candidateId:
             </section>
 
             <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+              <h2 className="text-lg font-bold text-neutral-950">추출 근거와 경고</h2>
+              <dl className="mt-4 grid gap-4 text-sm lg:grid-cols-3">
+                <Info label="후보 신뢰도" value={Number(candidate.confidence ?? 0).toFixed(2)} />
+                <Info label="생일 문맥 근거" value={candidate.contextEvidence ?? "-"} wide />
+              </dl>
+              <div className="mt-5 grid gap-4 xl:grid-cols-2">
+                <ListBox title="경고 목록" lines={warningLines} empty="추출 경고 없음" />
+                <ListBox title="제외된 문구" lines={excludedLines} empty="제외된 문구 없음" />
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
               <details>
                 <summary className="cursor-pointer text-lg font-bold text-neutral-950">근거 원문 펼쳐보기</summary>
                 <pre className="mt-4 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-neutral-50 p-4 text-sm leading-6 text-neutral-700">
@@ -453,7 +502,7 @@ export function AdminBenefitCandidateDetailPanel({ candidateId }: { candidateId:
             <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
               <h2 className="text-lg font-bold text-neutral-950">쿠폰 이미지 소스 참고</h2>
               <p className="mt-1 text-sm text-neutral-500">
-                브랜드명은 확실할 때만 입력합니다. 이미지 파일명만 보고 확정하지 마세요.
+                이미지는 검수 참고용입니다. public 화면에는 외부 로고/쿠폰 이미지를 노출하지 않습니다. 브랜드명은 이미지 파일명만 보고 확정하지 마세요.
               </p>
               <div className="mt-3">
                 <CouponImageSources sources={couponImageSources} />
@@ -503,6 +552,26 @@ export function AdminBenefitCandidateDetailPanel({ candidateId }: { candidateId:
                   승인된 후보는 검증 완료 상태의 혜택으로 생성됩니다. 공개 전환 전까지 사용자 화면에는 노출되지 않습니다.
                 </p>
               </div>
+
+              <div className="space-y-2 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+                <p className="text-sm font-bold text-neutral-900">승인 전 필수 체크리스트</p>
+                {reviewChecklistLabels.map((label, index) => (
+                  <label key={label} className="flex gap-2 text-sm leading-5 text-neutral-700">
+                    <input
+                      checked={reviewChecks[index]}
+                      onChange={(event) => setReviewChecks((checks) => checks.map((checked, itemIndex) => itemIndex === index ? event.target.checked : checked))}
+                      type="checkbox"
+                    />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+
+              {foundProhibitedTerms.length > 0 ? (
+                <p className="rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700">
+                  공개 금지 표현이 포함되어 승인할 수 없습니다: {foundProhibitedTerms.join(", ")}
+                </p>
+              ) : null}
 
               <TextInput
                   label="제목"
@@ -608,6 +677,9 @@ export function AdminBenefitCandidateDetailPanel({ candidateId }: { candidateId:
                   onChange={(adminMemo) => setApproveForm((current) => current && { ...current, adminMemo })}
                   minHeightClassName="min-h-28"
               />
+              <p className="rounded-lg bg-neutral-50 p-3 text-xs leading-5 text-neutral-600">
+                관리자 메모 예: 2026-04-29 공식 페이지에서 생일 쿠폰 문구 확인. 로고/이미지는 사용하지 않음. 원문 요약함.
+              </p>
 
               <button
                   className="h-12 w-full rounded-lg bg-blue-600 px-4 text-sm font-bold text-white disabled:opacity-60"
@@ -618,7 +690,7 @@ export function AdminBenefitCandidateDetailPanel({ candidateId }: { candidateId:
               </button>
 
               {approveDisabled ? (
-                  <p className="text-sm text-neutral-500">이미 승인되었거나 반려된 후보는 승인할 수 없습니다.</p>
+                  <p className="text-sm text-neutral-500">이미 승인/반려되었거나 체크리스트 미완료, 금지어 포함 상태에서는 승인할 수 없습니다.</p>
               ) : null}
             </form>
           </aside>
@@ -727,7 +799,7 @@ function DetailItemsEditor({
           <div>
             <h3 className="text-lg font-bold text-neutral-950">혜택 상세 리스트</h3>
             <p className="mt-1 text-sm text-neutral-500">
-              공개 화면에 표시될 대표 혜택 목록입니다. 브랜드명은 확실할 때만 입력하세요.
+              공개 화면에 표시될 대표 혜택 목록입니다. 외부 이미지 URL은 public에 노출하지 않으며, 브랜드명은 확실할 때만 입력하세요.
             </p>
           </div>
           <button className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white" type="button" onClick={onAdd}>
@@ -880,8 +952,12 @@ function EmptyBox({ children }: { children: React.ReactNode }) {
   return <div className="rounded-2xl border border-neutral-200 bg-white p-8 text-center text-sm text-neutral-600 shadow-sm">{children}</div>;
 }
 
-function Notice({ children, tone }: { children: React.ReactNode; tone: "success" | "error" }) {
-  const className = tone === "success" ? "border-green-200 bg-green-50 text-green-700" : "border-red-200 bg-red-50 text-red-700";
+function Notice({ children, tone }: { children: React.ReactNode; tone: "success" | "error" | "warning" }) {
+  const className = tone === "success"
+      ? "border-green-200 bg-green-50 text-green-700"
+      : tone === "warning"
+        ? "border-amber-200 bg-amber-50 text-amber-800"
+        : "border-red-200 bg-red-50 text-red-700";
 
   return <div className={`rounded-2xl border p-4 text-sm ${className}`}>{children}</div>;
 }

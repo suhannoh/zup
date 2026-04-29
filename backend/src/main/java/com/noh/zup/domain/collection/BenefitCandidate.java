@@ -90,12 +90,24 @@ public class BenefitCandidate extends BaseTimeEntity {
     @Lob
     private String usageGuideText;
 
+    @Lob
+    private String extractionWarnings;
+
+    @Lob
+    private String contextEvidence;
+
+    @Lob
+    private String excludedTexts;
+
     @Column(nullable = false, precision = 3, scale = 2)
     private BigDecimal confidence;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private BenefitCandidateStatus status = BenefitCandidateStatus.NEEDS_REVIEW;
+
+    @Column(nullable = false)
+    private Boolean needsManualReview = false;
 
     @Lob
     private String reviewMemo;
@@ -144,6 +156,9 @@ public class BenefitCandidate extends BaseTimeEntity {
                 benefitDetailText,
                 benefitDetailImageSources,
                 usageGuideText,
+                null,
+                null,
+                null,
                 confidence
         );
     }
@@ -198,6 +213,9 @@ public class BenefitCandidate extends BaseTimeEntity {
             String benefitDetailText,
             String benefitDetailImageSources,
             String usageGuideText,
+            String extractionWarnings,
+            String contextEvidence,
+            String excludedTexts,
             BigDecimal confidence
     ) {
         this.brand = brand;
@@ -212,10 +230,13 @@ public class BenefitCandidate extends BaseTimeEntity {
         this.requiresApp = requiresApp;
         this.requiresSignup = requiresSignup;
         this.requiresMembership = requiresMembership;
-        this.evidenceText = evidenceText;
+        this.evidenceText = truncateEvidence(evidenceText);
         this.benefitDetailText = benefitDetailText;
         this.benefitDetailImageSources = benefitDetailImageSources;
         this.usageGuideText = usageGuideText;
+        this.extractionWarnings = extractionWarnings;
+        this.contextEvidence = contextEvidence;
+        this.excludedTexts = excludedTexts;
         this.confidence = confidence;
         this.status = BenefitCandidateStatus.NEEDS_REVIEW;
     }
@@ -253,6 +274,9 @@ public class BenefitCandidate extends BaseTimeEntity {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
                 confidence
         );
     }
@@ -268,6 +292,14 @@ public class BenefitCandidate extends BaseTimeEntity {
         this.status = BenefitCandidateStatus.APPROVED;
         this.approvedBenefit = approvedBenefit;
         this.approvedAt = LocalDateTime.now();
+        if (reviewMemo != null) {
+            this.reviewMemo = reviewMemo;
+        }
+    }
+
+    public void requireManualReview(String reviewMemo) {
+        this.needsManualReview = true;
+        this.status = BenefitCandidateStatus.NEEDS_REVIEW;
         if (reviewMemo != null) {
             this.reviewMemo = reviewMemo;
         }
@@ -341,6 +373,18 @@ public class BenefitCandidate extends BaseTimeEntity {
         return usageGuideText;
     }
 
+    public String getExtractionWarnings() {
+        return extractionWarnings;
+    }
+
+    public String getContextEvidence() {
+        return contextEvidence;
+    }
+
+    public String getExcludedTexts() {
+        return excludedTexts;
+    }
+
     public BigDecimal getConfidence() {
         return confidence;
     }
@@ -353,11 +397,22 @@ public class BenefitCandidate extends BaseTimeEntity {
         return reviewMemo;
     }
 
+    public Boolean getNeedsManualReview() {
+        return needsManualReview;
+    }
+
     public Benefit getApprovedBenefit() {
         return approvedBenefit;
     }
 
     public LocalDateTime getApprovedAt() {
         return approvedAt;
+    }
+
+    private String truncateEvidence(String value) {
+        if (value == null || value.length() <= 200) {
+            return value;
+        }
+        return value.substring(0, 200);
     }
 }

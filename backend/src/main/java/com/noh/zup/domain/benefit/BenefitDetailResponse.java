@@ -33,13 +33,13 @@ public record BenefitDetailResponse(
         LocalDateTime updatedAt,
         List<BenefitTagResponse> tags,
         List<BenefitSourceResponse> sources,
-        List<BenefitDetailItemResponse> detailItems
+        List<?> detailItems
 ) {
     public static BenefitDetailResponse of(
             Benefit benefit,
             List<BenefitTagResponse> tags,
             List<BenefitSourceResponse> sources,
-            List<BenefitDetailItemResponse> detailItems
+            List<?> detailItems
     ) {
         return new BenefitDetailResponse(
                 benefit.getId(),

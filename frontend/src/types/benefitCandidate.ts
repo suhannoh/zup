@@ -27,8 +27,12 @@ export type BenefitCandidate = {
   benefitDetailText?: string | null;
   benefitDetailImageSources?: string | null;
   usageGuideText?: string | null;
+  extractionWarnings?: string | null;
+  contextEvidence?: string | null;
+  excludedTexts?: string | null;
   confidence: number;
   status: BenefitCandidateStatus;
+  needsManualReview: boolean;
   reviewMemo: string | null;
   approvedBenefitId: number | null;
   approvedAt: string | null;

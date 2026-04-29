@@ -43,6 +43,11 @@ type SourceFormState = {
   sourceUrl: string;
   sourceTitle: string;
   sourceCheckedAt: string;
+  officialSourceUrl: string;
+  lastVerifiedDate: string;
+  collectionMethod: "AUTO_COLLECTED" | "MANUAL_VERIFIED" | "MIXED" | "UNKNOWN";
+  verificationSummary: string;
+  sourceNotice: string;
   memo: string;
 };
 
@@ -62,8 +67,28 @@ const emptySourceForm: SourceFormState = {
   sourceUrl: "",
   sourceTitle: "",
   sourceCheckedAt: "",
+  officialSourceUrl: "",
+  lastVerifiedDate: "",
+  collectionMethod: "UNKNOWN",
+  verificationSummary: "",
+  sourceNotice: "",
   memo: "",
 };
+
+const reviewChecklistLabels = [
+  "공식 URL에서 직접 확인했는가?",
+  "robots.txt/수집 정책 상태를 확인했는가?",
+  "약관상 자동 수집 또는 재배포 금지 여부를 확인했는가?",
+  "원문 문장을 그대로 복사하지 않았는가?",
+  "브랜드 로고, 쿠폰 이미지, 배너 이미지를 사용하지 않았는가?",
+  "브랜드명, 혜택명, 핵심 조건 중심으로 짧게 요약했는가?",
+  "최종 확인일을 입력했는가?",
+  "공식 출처 URL을 입력했는가?",
+  "오인 표현을 쓰지 않았는가?",
+  "사용 전 공식 앱/홈페이지 확인이 필요하다는 안내가 있는가?",
+];
+
+const prohibitedTerms = ["공식 쿠폰", "공식 제휴", "제휴 혜택", "인증 혜택", "보장", "확정", "무조건", "반드시 제공", "Zup 단독", "최신 보장", "100% 사용 가능"];
 
 function normalizeOptional(value: string) {
   const trimmed = value.trim();
@@ -76,6 +101,11 @@ function toSourceRequest(form: SourceFormState): AdminBenefitSourceCreateRequest
     sourceUrl: form.sourceUrl.trim(),
     sourceTitle: normalizeOptional(form.sourceTitle),
     sourceCheckedAt: normalizeOptional(form.sourceCheckedAt),
+    officialSourceUrl: normalizeOptional(form.officialSourceUrl),
+    lastVerifiedDate: normalizeOptional(form.lastVerifiedDate),
+    collectionMethod: form.collectionMethod,
+    verificationSummary: normalizeOptional(form.verificationSummary),
+    sourceNotice: normalizeOptional(form.sourceNotice),
     memo: normalizeOptional(form.memo),
   };
 }
@@ -86,6 +116,11 @@ function toSourceForm(source: AdminBenefitSource): SourceFormState {
     sourceUrl: source.sourceUrl ?? "",
     sourceTitle: source.sourceTitle ?? "",
     sourceCheckedAt: source.sourceCheckedAt ?? "",
+    officialSourceUrl: source.officialSourceUrl ?? source.sourceUrl ?? "",
+    lastVerifiedDate: source.lastVerifiedDate ?? source.sourceCheckedAt ?? "",
+    collectionMethod: source.collectionMethod ?? "UNKNOWN",
+    verificationSummary: source.verificationSummary ?? "",
+    sourceNotice: source.sourceNotice ?? "",
     memo: source.memo ?? "",
   };
 }
@@ -146,6 +181,7 @@ export function AdminBenefitDetailPanel({ benefitId }: { benefitId: number }) {
   const [savingDetailItems, setSavingDetailItems] = useState(false);
   const [savingTag, setSavingTag] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [reviewChecks, setReviewChecks] = useState<boolean[]>(() => reviewChecklistLabels.map(() => false));
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -405,8 +441,11 @@ export function AdminBenefitDetailPanel({ benefitId }: { benefitId: number }) {
     );
   }
 
+  const publicText = `${benefit.title}\n${benefit.summary}\n${benefit.detail ?? ""}\n${benefit.conditionSummary ?? ""}\n${benefit.caution ?? ""}`;
+  const foundProhibitedTerms = prohibitedTerms.filter((term) => publicText.includes(term));
+  const checklistComplete = reviewChecks.every(Boolean);
   const publicExposureReady = benefit.verificationStatus === "PUBLISHED" && benefit.isActive && activeSources.length > 0;
-  const canPublish = benefit.verificationStatus !== "PUBLISHED" && benefit.isActive && activeSources.length > 0;
+  const canPublish = benefit.verificationStatus !== "PUBLISHED" && benefit.isActive && activeSources.length > 0 && checklistComplete && foundProhibitedTerms.length === 0;
 
   return (
     <section className="space-y-6">
@@ -467,7 +506,7 @@ export function AdminBenefitDetailPanel({ benefitId }: { benefitId: number }) {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-bold">혜택 상세 리스트 관리</h2>
-                <p className="mt-1 text-sm text-neutral-500">공개 브랜드 페이지의 대표 혜택 목록으로 사용됩니다.</p>
+                <p className="mt-1 text-sm text-neutral-500">이미지는 검수 참고용입니다. public 화면에는 외부 로고/쿠폰 이미지를 노출하지 않습니다.</p>
               </div>
               <div className="flex gap-2">
                 <button className="h-9 rounded-lg border border-neutral-200 px-3 text-sm font-semibold" type="button" onClick={addDetailItem}>
@@ -530,6 +569,15 @@ export function AdminBenefitDetailPanel({ benefitId }: { benefitId: number }) {
                 <TextInput label="출처 URL" value={sourceForm.sourceUrl} onChange={(value) => updateSourceForm({ sourceUrl: value })} required type="url" />
                 <TextInput label="출처 제목" value={sourceForm.sourceTitle} onChange={(value) => updateSourceForm({ sourceTitle: value })} />
                 <TextInput label="확인일" value={sourceForm.sourceCheckedAt} onChange={(value) => updateSourceForm({ sourceCheckedAt: value })} type="date" />
+                <TextInput label="공식 출처 URL" value={sourceForm.officialSourceUrl} onChange={(value) => updateSourceForm({ officialSourceUrl: value })} type="url" />
+                <TextInput label="최종 확인일" value={sourceForm.lastVerifiedDate} onChange={(value) => updateSourceForm({ lastVerifiedDate: value })} type="date" />
+                <Select label="확인 방식" value={sourceForm.collectionMethod} onChange={(value) => updateSourceForm({ collectionMethod: value as SourceFormState["collectionMethod"] })}>
+                  {["UNKNOWN", "AUTO_COLLECTED", "MANUAL_VERIFIED", "MIXED"].map((method) => (
+                    <option key={method} value={method}>{method}</option>
+                  ))}
+                </Select>
+                <TextArea label="검증 메모 요약" value={sourceForm.verificationSummary} onChange={(value) => updateSourceForm({ verificationSummary: value })} />
+                <TextArea label="public 고지 문구" value={sourceForm.sourceNotice} onChange={(value) => updateSourceForm({ sourceNotice: value })} />
                 <TextArea label="메모" value={sourceForm.memo} onChange={(value) => updateSourceForm({ memo: value })} />
                 <button className="h-11 w-full rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white disabled:opacity-60" type="submit" disabled={savingSource}>
                   {savingSource ? "저장 중" : editingSource ? "출처 수정" : "출처 등록"}
@@ -661,6 +709,24 @@ export function AdminBenefitDetailPanel({ benefitId }: { benefitId: number }) {
             <p className="mt-4 rounded-lg bg-neutral-50 p-3 text-xs leading-5 text-neutral-600">
               Public 화면에는 공개 중 상태이면서 활성화된 혜택만 노출됩니다. 공식 출처와 상세 리스트를 확인한 뒤 공개 전환하세요.
             </p>
+            <div className="mt-4 space-y-2 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+              <p className="text-sm font-bold text-neutral-900">공개 전 필수 체크리스트</p>
+              {reviewChecklistLabels.map((label, index) => (
+                <label key={label} className="flex gap-2 text-sm leading-5 text-neutral-700">
+                  <input
+                    checked={reviewChecks[index]}
+                    onChange={(event) => setReviewChecks((checks) => checks.map((checked, itemIndex) => itemIndex === index ? event.target.checked : checked))}
+                    type="checkbox"
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+            {foundProhibitedTerms.length > 0 ? (
+              <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-700">
+                공개 금지 표현이 포함되어 공개할 수 없습니다: {foundProhibitedTerms.join(", ")}
+              </p>
+            ) : null}
             <button
               className="mt-4 h-11 w-full rounded-lg bg-blue-600 px-4 text-sm font-bold text-white disabled:opacity-60"
               type="button"
@@ -670,7 +736,7 @@ export function AdminBenefitDetailPanel({ benefitId }: { benefitId: number }) {
               {publishing ? "공개 전환 중" : benefit.verificationStatus === "PUBLISHED" ? "이미 공개 중" : "공개 전환"}
             </button>
             {!canPublish && benefit.verificationStatus !== "PUBLISHED" ? (
-              <p className="mt-2 text-xs text-neutral-500">활성 혜택과 공식 출처가 있어야 공개 전환할 수 있습니다.</p>
+              <p className="mt-2 text-xs text-neutral-500">활성 혜택, 공식 출처, 체크리스트 완료, 금지어 제거가 필요합니다.</p>
             ) : null}
           </section>
 

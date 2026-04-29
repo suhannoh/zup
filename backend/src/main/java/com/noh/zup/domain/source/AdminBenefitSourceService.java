@@ -35,6 +35,13 @@ public class AdminBenefitSourceService {
         Benefit benefit = getBenefit(benefitId);
         BenefitSource source = new BenefitSource(benefit, request.sourceType(), request.sourceUrl());
         source.update(null, null, request.sourceTitle(), request.sourceCheckedAt(), request.memo());
+        source.updateVerificationMetadata(
+                request.officialSourceUrl(),
+                request.lastVerifiedDate(),
+                request.collectionMethod(),
+                request.verificationSummary(),
+                request.sourceNotice()
+        );
         return AdminBenefitSourceResponse.from(benefitSourceRepository.save(source));
     }
 
@@ -47,6 +54,13 @@ public class AdminBenefitSourceService {
                 request.sourceTitle(),
                 request.sourceCheckedAt(),
                 request.memo()
+        );
+        source.updateVerificationMetadata(
+                request.officialSourceUrl(),
+                request.lastVerifiedDate(),
+                request.collectionMethod(),
+                request.verificationSummary(),
+                request.sourceNotice()
         );
         return AdminBenefitSourceResponse.from(source);
     }

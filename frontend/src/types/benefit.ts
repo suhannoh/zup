@@ -8,6 +8,11 @@ export type BenefitSource = {
   sourceUrl: string;
   sourceTitle: string | null;
   sourceCheckedAt: string | null;
+  officialSourceUrl: string | null;
+  lastVerifiedDate: string | null;
+  collectionMethod: string | null;
+  verificationSummary: string | null;
+  sourceNotice: string | null;
 };
 
 export type BenefitDetailItem = {
@@ -16,7 +21,6 @@ export type BenefitDetailItem = {
   title: string;
   description: string | null;
   conditionText: string | null;
-  imageUrl: string | null;
   displayOrder: number;
   isActive: boolean;
 };

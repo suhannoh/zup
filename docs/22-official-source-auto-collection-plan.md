@@ -169,6 +169,20 @@ app:
     min-domain-interval-seconds: 60
 ```
 
+### CJ ONE 수동 관리 전환
+
+CJ ONE 생일축하쿠폰 안내 카드(`https://m.cjone.com/cjmmobile/guide/guidePrsCpnInfo.do`)는 일반 봇(`User-agent: *`)에 대해 `Disallow: /` 정책이 확인되었으므로 자동 수집 대상에서 제외한다.
+
+- robots 차단을 우회하지 않는다.
+- User-Agent를 Googlebot, NaverBot 등으로 위장하지 않는다.
+- SourceWatch는 삭제하지 않고 공식 출처 URL을 수동 검수 근거로 유지한다.
+- 해당 브랜드 혜택은 관리자가 공식 페이지를 직접 확인한 뒤 수동으로 등록/수정한다.
+- robots 차단 SourceWatch에서는 저장된 스냅샷 기반 후보 재생성도 허용하지 않는다.
+- 기존 미승인 후보는 `needsManualReview=true`로 전환하고 관리자 재검토 필요 뱃지를 표시한다.
+- public 화면에는 공식 출처 URL과 최종 확인일을 표시하되, 외부 로고/쿠폰 이미지/배너 이미지는 직접 노출하지 않는다.
+- 원본 HTML 전문은 장기 보관하지 않는다. 기존 CJ ONE snapshot은 `isForReviewOnly=true`, `expiresAt=30일` 기준으로 정리 대상으로 관리한다.
+- DB 전환 SQL 초안은 `docs/sql/20260429_cjone_robots_blocked_manual_transition.sql`에 둔다. 실제 삭제는 별도 운영 작업으로 수행한다.
+
 운영 배포 URL이 확정되면 `ZupBot/1.0 (+https://...)`처럼 연락 가능한 URL을 포함한 User-Agent로 변경한다. 공식 사이트를 속이기 위한 User-Agent는 사용하지 않는다.
 
 `Crawl-delay`와 `Sitemap`은 현재 자동 처리하지 않는다. Crawl-delay는 후속 작업에서 도메인별 rate limit과 함께 검토한다.
@@ -241,3 +255,36 @@ CJ ONE 생일축하쿠폰 샘플 HTML 기준으로 서버 HTML 안에는 쿠폰 
 - 이미지 로고 기반 쿠폰 row는 `img src`, `alt`, `title`, `aria-label`, 부모 링크, 부모 title/aria-label, 주변 텍스트를 함께 저장한다.
 - `alt`, `title`, `aria-label`처럼 접근성 속성에 명확한 브랜드명이 있을 때만 브랜드명 후보로 신뢰한다. 이미지 파일명이나 CDN URL만 보고 detail item의 브랜드명을 자동 확정하지 않는다.
 - Public 브랜드 페이지에는 `PUBLISHED + isActive=true` 혜택만 노출한다. detail item이 비어 있어도 혜택 카드 자체는 표시하고, 상세 혜택은 공식 안내 확인 문구로 fallback한다.
+
+## 15. 보수적 수집 허용 기준
+
+- SourceWatch 자동 수집은 robots.txt 확인, 공개 페이지 여부, 약관 수동 확인, 로그인 필요 여부, 요청 간격 제한을 모두 통과한 경우에만 허용한다.
+- `termsCheckStatus`는 자동 판단하지 않는다. 관리자가 약관 페이지를 직접 열어 크롤링, 스크래핑, 재배포, 자동 수집 금지 조항을 확인한 뒤 입력한다.
+- `termsCheckStatus=NOT_CHECKED`는 allowed가 아니다. 신규 SourceWatch 기본값은 `NOT_CHECKED`와 `UNKNOWN_NEEDS_REVIEW`이며 자동 수집 버튼은 비활성화한다.
+- `robotsCheckStatus=DISALLOWED/FETCH_FAILED/PARSE_FAILED`, `termsCheckStatus=RESTRICTION_FOUND/NOT_CHECKED/NEEDS_REVIEW`, `loginRequired=true`, `collectionPermissionStatus != ALLOWED_TO_COLLECT`는 모두 `SKIPPED` 처리한다.
+- `collectionPermissionStatus`는 규칙으로 계산한다. 관리자가 수동으로 `ALLOWED_TO_COLLECT`로 올릴 수 없고, `MANUAL_REVIEW_ONLY`로 낮추는 것만 허용한다.
+- robots-blocked 사이트의 기존 `PageSnapshot`은 30일 후 삭제 대상으로 `expiresAt`을 관리한다. 이번 단계에서 실제 DB 삭제는 하지 않는다.
+- robots-blocked 또는 terms-blocked 출처의 미승인 후보는 `needsManualReview=true`로 전환해 관리자 재검토 대상으로 표시한다.
+- 이미 public인 Benefit은 유지하되, `lastVerifiedDate` 또는 `lastVerifiedAt`이 30일 이상 지난 경우 대시보드에서 재확인 대상으로 본다.
+
+## 16. Public 고지와 이미지 정책
+
+- Zup은 브랜드와 공식 제휴 또는 파트너십 관계가 아니며 쿠폰을 직접 발급하거나 판매하지 않는다.
+- Public 혜택 상세 하단에는 출처, 최종 확인일, 확인 방식, 변경 가능성, 사용 전 공식 앱/홈페이지 확인 안내를 표시한다.
+- 수동 검수 혜택은 자동 수집 정보가 아니라 관리자가 공식 페이지를 직접 확인해 정리한 정보라고 구분한다.
+- Public DTO에는 `BenefitDetailItem.imageUrl`을 포함하지 않는다. 외부 이미지, 브랜드 로고, 쿠폰 이미지, 배너 이미지는 admin 검수 참고용으로만 사용한다.
+- 공개 전 금지어가 있으면 공개 버튼을 비활성화하고 백엔드에서도 `PUBLISHED` 전환을 거부한다.
+
+## 17. API 없이 동작하는 규칙 기반 추출 파이프라인
+
+- 이번 단계에서는 OpenAI API 또는 외부 LLM API를 사용하지 않는다. ChatGPT Plus는 API 사용권이 아니며, 키/비용 관리 없이도 1차 품질 개선은 규칙 기반으로 수행한다.
+- 현재 흐름은 `HtmlTextExtractor`가 DOM을 블록 단위로 나누고, `BenefitCandidateDetector`가 블록 문맥을 분류한 뒤 후보를 만든다.
+- 향후 API 키가 생기면 `RuleBasedBenefitExtractor -> Optional AiBenefitNormalizer -> BenefitExtractionValidator -> BenefitCandidate` 구조로 확장할 수 있다. 이번 구현에는 AI normalizer를 넣지 않는다.
+- 전체 페이지 textContent를 그대로 후보 생성에 사용하지 않는다. `section`, `article`, `li`, `tr`, card/coupon/benefit/item/tab/accordion 계열 블록을 우선 추출하고, `--- ZUP_BLOCK ---` 구분자로 스냅샷 텍스트에 보존한다.
+- 후보 `evidenceText`는 최대 200자 이내 발췌로 제한한다. 원문 블록 전체를 장기 보관하지 않는다.
+- 블록 문맥은 `BIRTHDAY_BENEFIT`, `MEMBERSHIP_REWARD`, `GRADE_BENEFIT`, `COUPON_USAGE_GUIDE`, `CONDITION_NOTICE`, `FAQ`, `FOOTER_OR_NAV`, `UNKNOWN`으로 분류한다.
+- 생일 후보는 생일, birthday, birth, 생년월일, 무료 음료 e-쿠폰, 생일 쿠폰과 가까운 블록 및 주변 조건/이용안내 블록만 사용한다.
+- 별 적립, 별 15개/50개, 푸드/MD 바우처, 등급 전용 혜택, Gold/Welcome/Green, 포인트 적립, 이벤트 문맥은 생일 후보에서 제외한다.
+- 조건문 단독 문구와 UI 잔여 텍스트는 혜택명으로 만들지 않는다. 제외된 문구는 후보의 `excludedTexts`에 남겨 관리자 검수 화면에서 확인한다.
+- 후보에는 `extractionWarnings`, `contextEvidence`, `excludedTexts`를 저장한다. 경고가 있으면 `needsManualReview=true`로 표시한다.
+- 스타벅스/CJ ONE 케이스는 live 수집이 아니라 단위 테스트용 최소 HTML 조각으로 검증한다. CJ ONE 실제 URL은 robots 차단 상태이므로 다시 자동 수집하지 않는다.

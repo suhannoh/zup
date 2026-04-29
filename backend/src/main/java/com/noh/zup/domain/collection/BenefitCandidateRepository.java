@@ -2,6 +2,7 @@ package com.noh.zup.domain.collection;
 
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 public interface BenefitCandidateRepository extends JpaRepository<BenefitCandidate, Long> {
@@ -23,4 +24,15 @@ public interface BenefitCandidateRepository extends JpaRepository<BenefitCandida
             String contentHash,
             String evidenceText
     );
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update BenefitCandidate candidate
+            set candidate.needsManualReview = true,
+                candidate.status = com.noh.zup.domain.collection.BenefitCandidateStatus.NEEDS_REVIEW
+            where candidate.sourceWatch.id = :sourceWatchId
+              and candidate.approvedBenefit is null
+              and candidate.status <> com.noh.zup.domain.collection.BenefitCandidateStatus.APPROVED
+            """)
+    int markUnapprovedAsNeedsManualReview(Long sourceWatchId);
 }

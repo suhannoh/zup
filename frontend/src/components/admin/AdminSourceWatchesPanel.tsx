@@ -19,10 +19,14 @@ import type { SourceType } from "@/types/adminBenefitSource";
 import type { AdminBrand } from "@/types/adminBrand";
 import type { SourceWatchCollectionRunHistory } from "@/types/collectionRun";
 import type {
+  CollectionMethod,
+  CollectionPermissionStatus,
   RecentCollectionRunSummary,
+  RobotsCheckStatus,
   SourceWatch,
   SourceWatchCollectResponse,
   SourceWatchRegenerateCandidatesResponse,
+  TermsCheckStatus,
 } from "@/types/sourceWatch";
 
 type FormState = {
@@ -31,6 +35,13 @@ type FormState = {
   title: string;
   url: string;
   isActive: boolean;
+  loginRequired: boolean;
+  robotsCheckStatus: RobotsCheckStatus;
+  termsCheckStatus: TermsCheckStatus;
+  collectionMethod: CollectionMethod;
+  collectionPermissionStatus: CollectionPermissionStatus | "";
+  policyCheckNote: string;
+  manualVerificationNote: string;
 };
 
 const emptyForm: FormState = {
@@ -39,6 +50,13 @@ const emptyForm: FormState = {
   title: "",
   url: "",
   isActive: true,
+  loginRequired: false,
+  robotsCheckStatus: "UNKNOWN",
+  termsCheckStatus: "NOT_CHECKED",
+  collectionMethod: "UNKNOWN",
+  collectionPermissionStatus: "",
+  policyCheckNote: "",
+  manualVerificationNote: "",
 };
 
 function toForm(sourceWatch: SourceWatch): FormState {
@@ -48,6 +66,16 @@ function toForm(sourceWatch: SourceWatch): FormState {
     title: sourceWatch.title ?? "",
     url: sourceWatch.url ?? "",
     isActive: Boolean(sourceWatch.isActive),
+    loginRequired: Boolean(sourceWatch.loginRequired),
+    robotsCheckStatus: sourceWatch.robotsCheckStatus ?? "UNKNOWN",
+    termsCheckStatus: sourceWatch.termsCheckStatus ?? "NOT_CHECKED",
+    collectionMethod: sourceWatch.collectionMethod ?? "UNKNOWN",
+    collectionPermissionStatus:
+      sourceWatch.collectionPermissionStatus === "MANUAL_REVIEW_ONLY"
+        ? "MANUAL_REVIEW_ONLY"
+        : "",
+    policyCheckNote: sourceWatch.policyCheckNote ?? "",
+    manualVerificationNote: sourceWatch.manualVerificationNote ?? "",
   };
 }
 
@@ -68,6 +96,11 @@ function formatDateTime(value: string | null) {
   }).format(date);
 }
 
+function normalizeOptional(value: string) {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 function getErrorMessage(error: unknown, fallback: string) {
   if (typeof error === "object" && error !== null && "response" in error) {
     const response = (error as { response?: { data?: { message?: string } } }).response;
@@ -83,7 +116,47 @@ const skippedFailureReasons = new Set([
   "ROBOTS_TXT_DISALLOWED",
   "ROBOTS_TXT_FETCH_FAILED",
   "ROBOTS_TXT_PARSE_FAILED",
+  "TERMS_RESTRICTION_FOUND",
+  "TERMS_NOT_CHECKED",
+  "COLLECTION_PERMISSION_NOT_APPROVED",
+  "LOGIN_REQUIRED_SOURCE",
+  "UNKNOWN_POLICY_NEEDS_REVIEW",
 ]);
+
+const permissionLabels: Record<CollectionPermissionStatus, string> = {
+  ALLOWED_TO_COLLECT: "자동 수집 가능",
+  MANUAL_REVIEW_ONLY: "수동 검수 필요",
+  BLOCKED_BY_ROBOTS: "자동 수집 불가 · robots.txt 차단",
+  BLOCKED_BY_TERMS: "약관 금지",
+  LOGIN_REQUIRED: "로그인 필요",
+  UNKNOWN_NEEDS_REVIEW: "정책 확인 필요",
+};
+
+const permissionClasses: Record<CollectionPermissionStatus, string> = {
+  ALLOWED_TO_COLLECT: "bg-green-50 text-green-700",
+  MANUAL_REVIEW_ONLY: "bg-amber-50 text-amber-700",
+  BLOCKED_BY_ROBOTS: "bg-red-50 text-red-700",
+  BLOCKED_BY_TERMS: "bg-red-50 text-red-700",
+  LOGIN_REQUIRED: "bg-neutral-100 text-neutral-700",
+  UNKNOWN_NEEDS_REVIEW: "bg-amber-50 text-amber-700",
+};
+
+function getPolicyGuidance(status: CollectionPermissionStatus) {
+  if (status === "ALLOWED_TO_COLLECT") {
+    return "이 출처는 현재 정책 기준상 자동 후보 생성이 가능합니다. 생성된 후보는 관리자 검수 후에만 공개됩니다.";
+  }
+  if (status === "UNKNOWN_NEEDS_REVIEW") {
+    return "robots.txt, 이용약관, 로그인 필요 여부를 확인하기 전까지 자동 수집을 진행하지 않습니다. 이용약관 확인 후 TermsCheckStatus를 업데이트하세요.";
+  }
+  if (status === "BLOCKED_BY_ROBOTS") {
+    return "이 출처는 robots.txt 정책에 의해 자동 수집할 수 없습니다. 공식 페이지를 직접 확인한 뒤 혜택 정보를 수동으로 등록하거나 수정해 주세요. 자동 수집은 중단되지만, 공식 출처 URL과 최종 확인일은 수동 검수 근거로 유지할 수 있습니다.";
+  }
+  return "이 출처는 자동 수집 대상이 아닙니다. 공식 페이지를 직접 확인한 뒤 최소 사실 정보 중심으로 수동 등록하거나 수정해 주세요.";
+}
+
+function isRegenerationBlocked(sourceWatch: SourceWatch) {
+  return sourceWatch.collectionPermissionStatus !== "ALLOWED_TO_COLLECT";
+}
 
 function getFailureReasonLabel(failureReason: string | null) {
   if (!failureReason) {
@@ -199,6 +272,13 @@ export function AdminSourceWatchesPanel() {
         title: form.title.trim(),
         url: form.url.trim(),
         isActive: form.isActive,
+        loginRequired: form.loginRequired,
+        robotsCheckStatus: form.robotsCheckStatus,
+        termsCheckStatus: form.termsCheckStatus,
+        collectionMethod: form.collectionMethod,
+        collectionPermissionStatus: form.collectionPermissionStatus || undefined,
+        policyCheckNote: normalizeOptional(form.policyCheckNote),
+        manualVerificationNote: normalizeOptional(form.manualVerificationNote),
       };
       if (editing) {
         await updateSourceWatch(editing.id, request);
@@ -377,6 +457,31 @@ export function AdminSourceWatchesPanel() {
           <TextInput label="수집 출처명" value={form.title} onChange={(title) => setForm((current) => ({ ...current, title }))} required />
           <TextInput label="수집 URL" value={form.url} onChange={(url) => setForm((current) => ({ ...current, url }))} required type="url" />
           <Checkbox label="활성 상태" checked={form.isActive} onChange={(isActive) => setForm((current) => ({ ...current, isActive }))} />
+          <Checkbox label="로그인 필요 출처" checked={form.loginRequired} onChange={(loginRequired) => setForm((current) => ({ ...current, loginRequired }))} />
+          <FieldSelect label="robots.txt 확인 상태" value={form.robotsCheckStatus} onChange={(robotsCheckStatus) => setForm((current) => ({ ...current, robotsCheckStatus: robotsCheckStatus as RobotsCheckStatus }))}>
+            {(["UNKNOWN", "ALLOWED", "DISALLOWED", "NOT_FOUND", "FETCH_FAILED", "PARSE_FAILED"] as RobotsCheckStatus[]).map((status) => (
+              <option key={status} value={status}>{status}</option>
+            ))}
+          </FieldSelect>
+          <FieldSelect label="약관 확인 상태" value={form.termsCheckStatus} onChange={(termsCheckStatus) => setForm((current) => ({ ...current, termsCheckStatus: termsCheckStatus as TermsCheckStatus }))}>
+            {(["NOT_CHECKED", "NO_RESTRICTION_FOUND", "RESTRICTION_FOUND", "NEEDS_REVIEW"] as TermsCheckStatus[]).map((status) => (
+              <option key={status} value={status}>{status}</option>
+            ))}
+          </FieldSelect>
+          <p className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+            이용약관 확인 여부를 직접 입력하세요. 약관 페이지에서 크롤링, 스크래핑, 재배포, 자동 수집 금지 조항이 있는지 확인하지 않으면 자동 수집이 허용되지 않습니다.
+          </p>
+          <FieldSelect label="검증 방식" value={form.collectionMethod} onChange={(collectionMethod) => setForm((current) => ({ ...current, collectionMethod: collectionMethod as CollectionMethod }))}>
+            {(["UNKNOWN", "AUTO_COLLECTED", "MANUAL_VERIFIED", "MIXED"] as CollectionMethod[]).map((method) => (
+              <option key={method} value={method}>{method}</option>
+            ))}
+          </FieldSelect>
+          <FieldSelect label="수동 권한 강제" value={form.collectionPermissionStatus} onChange={(collectionPermissionStatus) => setForm((current) => ({ ...current, collectionPermissionStatus: collectionPermissionStatus as CollectionPermissionStatus | "" }))}>
+            <option value="">자동 계산</option>
+            <option value="MANUAL_REVIEW_ONLY">MANUAL_REVIEW_ONLY</option>
+          </FieldSelect>
+          <TextArea label="정책 확인 메모" value={form.policyCheckNote} onChange={(policyCheckNote) => setForm((current) => ({ ...current, policyCheckNote }))} />
+          <TextArea label="수동 검수 메모" value={form.manualVerificationNote} onChange={(manualVerificationNote) => setForm((current) => ({ ...current, manualVerificationNote }))} />
           <button className="h-11 w-full rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white disabled:opacity-60" type="submit" disabled={saving}>
             {saving ? "저장 중" : editing ? "수정 저장" : "등록"}
           </button>
@@ -423,6 +528,9 @@ export function AdminSourceWatchesPanel() {
                     <span className={`rounded-full px-3 py-1 text-xs font-semibold ${sourceWatch.isActive ? "bg-green-50 text-green-700" : "bg-neutral-100 text-neutral-700"}`}>
                       {sourceWatch.isActive ? "활성" : "비활성"}
                     </span>
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${permissionClasses[sourceWatch.collectionPermissionStatus]}`}>
+                      {permissionLabels[sourceWatch.collectionPermissionStatus]}
+                    </span>
                   </div>
                   <p className="mt-1 text-sm text-neutral-500">
                     {sourceWatch.brandName ?? "-"} · {SOURCE_TYPE_LABELS[sourceWatch.sourceType] ?? sourceWatch.sourceType ?? "-"}
@@ -438,22 +546,33 @@ export function AdminSourceWatchesPanel() {
                   <button
                     className="h-9 rounded-lg bg-blue-600 px-3 text-sm font-semibold text-white disabled:opacity-60"
                     type="button"
-                    disabled={!sourceWatch.isActive || collectingId === sourceWatch.id}
+                    disabled={!sourceWatch.isActive || sourceWatch.collectionPermissionStatus !== "ALLOWED_TO_COLLECT" || collectingId === sourceWatch.id}
                     onClick={() => handleCollect(sourceWatch)}
                   >
                     {collectingId === sourceWatch.id ? "수집 중..." : "수집 실행"}
                   </button>
-                  <button
-                    className="h-9 rounded-lg border border-blue-600 px-3 text-sm font-semibold text-blue-600 disabled:opacity-60"
-                    type="button"
-                    disabled={regeneratingId === sourceWatch.id}
-                    onClick={() => handleRegenerate(sourceWatch)}
-                    title="기존 최신 스냅샷을 개선된 추출 규칙으로 다시 분석합니다. 외부 URL을 다시 호출하지 않습니다."
-                  >
-                    {regeneratingId === sourceWatch.id ? "재생성 중" : "후보 재생성"}
-                  </button>
+                  {!isRegenerationBlocked(sourceWatch) ? (
+                    <button
+                      className="h-9 rounded-lg border border-blue-600 px-3 text-sm font-semibold text-blue-600 disabled:opacity-60"
+                      type="button"
+                      disabled={regeneratingId === sourceWatch.id}
+                      onClick={() => handleRegenerate(sourceWatch)}
+                      title="기존 최신 스냅샷을 개선된 추출 규칙으로 다시 분석합니다. 외부 URL을 다시 호출하지 않습니다."
+                    >
+                      {regeneratingId === sourceWatch.id ? "재생성 중" : "후보 재생성"}
+                    </button>
+                  ) : null}
                   <Link className="h-9 rounded-lg border border-neutral-200 px-3 py-2 text-sm font-semibold" href="/admin/collection-runs">
                     최근 수집 이력 보기
+                  </Link>
+                  <a className="h-9 rounded-lg border border-neutral-200 px-3 py-2 text-sm font-semibold" href={sourceWatch.url} target="_blank" rel="noreferrer">
+                    공식 페이지 열기
+                  </a>
+                  <Link className="h-9 rounded-lg border border-neutral-200 px-3 py-2 text-sm font-semibold" href={`/admin/benefits?keyword=${encodeURIComponent(sourceWatch.brandName)}`}>
+                    공개 혜택 관리
+                  </Link>
+                  <Link className="h-9 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white" href={`/admin/benefits/new?brandId=${sourceWatch.brandId}&sourceWatchId=${sourceWatch.id}`}>
+                    수동 혜택 등록
                   </Link>
                   <button
                     className="h-9 rounded-lg border border-neutral-200 px-3 text-sm font-semibold"
@@ -473,7 +592,25 @@ export function AdminSourceWatchesPanel() {
                 <Info label="실패 횟수" value={String(sourceWatch.failureCount ?? 0)} />
                 <Info label="최근 content hash" value={sourceWatch.lastContentHash ? `${sourceWatch.lastContentHash.slice(0, 16)}...` : "-"} />
                 <Info label="다음 수집 예정" value={formatDateTime(sourceWatch.nextFetchAt)} />
+                <Info label="정책 상태" value={permissionLabels[sourceWatch.collectionPermissionStatus]} />
+                <Info label="robots.txt" value={sourceWatch.robotsCheckStatus} />
+                <Info label="약관 확인" value={sourceWatch.termsCheckStatus} />
+                <Info label="로그인 필요" value={sourceWatch.loginRequired ? "예" : "아니오"} />
+                <Info label="정책 확인일" value={formatDateTime(sourceWatch.lastPolicyCheckedAt)} />
+                <Info label="수동 검수일" value={formatDateTime(sourceWatch.lastManualVerifiedAt)} />
+                <Info label="정책 메모" value={sourceWatch.policyCheckNote ?? "-"} wide />
+                <Info label="수동 검수 메모" value={sourceWatch.manualVerificationNote ?? "-"} wide />
               </dl>
+              <p className="mt-4 rounded-lg bg-neutral-50 p-3 text-sm leading-6 text-neutral-700">
+                {getPolicyGuidance(sourceWatch.collectionPermissionStatus)}
+              </p>
+              {isRegenerationBlocked(sourceWatch) ? (
+                <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-800">
+                  이 출처는 robots.txt 또는 정책 상태에 의해 자동 수집 및 후보 재생성이 차단되어 있습니다.
+                  공식 페이지를 직접 확인한 뒤 혜택 정보를 수동으로 등록하거나 수정해 주세요.
+                  수동 혜택 등록 화면은 아직 없습니다. 현재는 공개 혜택 관리에서 기존 혜택을 수정해 주세요.
+                </p>
+              ) : null}
               <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-semibold text-neutral-800">최근 CollectionRun</span>
@@ -515,7 +652,7 @@ export function AdminSourceWatchesPanel() {
                   <span className="font-semibold text-neutral-700">수집 실행</span>: 도메인 최소 간격과 robots.txt를 확인한 뒤 허용된 공식 URL만 다시 가져옵니다.
                 </p>
                 <p className="rounded-lg bg-neutral-50 p-3">
-                  <span className="font-semibold text-neutral-700">후보 재생성</span>: 저장된 최신 스냅샷을 다시 분석합니다.
+                  <span className="font-semibold text-neutral-700">후보 재생성</span>: 정책상 허용된 출처의 저장된 최신 스냅샷만 다시 분석합니다.
                 </p>
               </div>
               {collectResults[sourceWatch.id] ? (
@@ -634,6 +771,15 @@ function TextInput({ label, onChange, required, type = "text", value }: { label:
     <label className="space-y-2 text-sm font-medium">
       <span>{label}</span>
       <input className="h-11 w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm" value={value} onChange={(event) => onChange(event.target.value)} required={required} type={type} />
+    </label>
+  );
+}
+
+function TextArea({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
+  return (
+    <label className="space-y-2 text-sm font-medium">
+      <span>{label}</span>
+      <textarea className="min-h-24 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm leading-6" value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
 }

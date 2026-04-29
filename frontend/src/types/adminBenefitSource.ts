@@ -16,6 +16,11 @@ export type AdminBenefitSource = {
   sourceUrl: string;
   sourceTitle: string | null;
   sourceCheckedAt: string | null;
+  officialSourceUrl: string | null;
+  lastVerifiedDate: string | null;
+  collectionMethod: "AUTO_COLLECTED" | "MANUAL_VERIFIED" | "MIXED" | "UNKNOWN";
+  verificationSummary: string | null;
+  sourceNotice: string | null;
   memo: string | null;
   isActive: boolean;
   createdAt: string;
@@ -27,6 +32,11 @@ export type AdminBenefitSourceCreateRequest = {
   sourceUrl: string;
   sourceTitle?: string | null;
   sourceCheckedAt?: string | null;
+  officialSourceUrl?: string | null;
+  lastVerifiedDate?: string | null;
+  collectionMethod?: "AUTO_COLLECTED" | "MANUAL_VERIFIED" | "MIXED" | "UNKNOWN" | null;
+  verificationSummary?: string | null;
+  sourceNotice?: string | null;
   memo?: string | null;
 };
 

@@ -9,6 +9,7 @@ import com.noh.zup.domain.benefit.BenefitRepository;
 import com.noh.zup.domain.benefit.BenefitType;
 import com.noh.zup.domain.benefit.BirthdayTimingType;
 import com.noh.zup.domain.benefit.OccasionType;
+import com.noh.zup.domain.benefit.PublicExpressionPolicy;
 import com.noh.zup.domain.benefit.VerificationStatus;
 import com.noh.zup.domain.source.BenefitSource;
 import com.noh.zup.domain.source.BenefitSourceRepository;
@@ -134,6 +135,9 @@ public class BenefitCandidateService {
                 LocalDate.now(),
                 true
         );
+        if (PublicExpressionPolicy.containsProhibitedTerms(benefit)) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "Approved benefit contains prohibited public terms");
+        }
         Benefit savedBenefit = benefitRepository.save(benefit);
         saveDetailItems(savedBenefit, request.detailItems());
 
@@ -145,6 +149,13 @@ public class BenefitCandidateService {
                 sourceWatch.getTitle(),
                 LocalDate.now(),
                 "자동 수집 후보 승인으로 생성됨. evidence: " + truncate(candidate.getEvidenceText(), 300)
+        );
+        source.updateVerificationMetadata(
+                sourceWatch.getUrl(),
+                LocalDate.now(),
+                CollectionMethod.AUTO_COLLECTED,
+                "허용된 공식 출처에서 자동 후보 생성 후 관리자 검수",
+                null
         );
         benefitSourceRepository.save(source);
 

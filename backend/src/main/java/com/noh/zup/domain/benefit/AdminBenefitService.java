@@ -6,7 +6,9 @@ import com.noh.zup.domain.brand.Brand;
 import com.noh.zup.domain.brand.BrandRepository;
 import com.noh.zup.domain.category.CategoryRepository;
 import com.noh.zup.domain.collection.CollectionDashboardService;
+import com.noh.zup.domain.collection.CollectionMethod;
 import com.noh.zup.domain.source.BenefitSourceRepository;
+import com.noh.zup.domain.source.BenefitSource;
 import com.noh.zup.domain.tag.Tag;
 import com.noh.zup.domain.tag.TagRepository;
 import com.noh.zup.domain.report.ReportStatus;
@@ -130,6 +132,54 @@ public class AdminBenefitService {
     }
 
     @Transactional
+    public BenefitDetailResponse createManualBenefit(AdminManualBenefitCreateRequest request) {
+        Brand brand = getBrand(request.brandId());
+        VerificationStatus verificationStatus = request.verificationStatus() == null
+                ? VerificationStatus.VERIFIED
+                : request.verificationStatus();
+        boolean isActive = request.isActive() == null || request.isActive();
+        validateManualBenefitRequest(request, verificationStatus, isActive);
+
+        Benefit benefit = new Benefit(brand, request.title(), request.summary(), request.benefitType());
+        benefit.update(
+                null,
+                null,
+                null,
+                request.detail(),
+                null,
+                request.occasionType() == null ? OccasionType.BIRTHDAY : request.occasionType(),
+                request.birthdayTimingType() == null ? BirthdayTimingType.UNKNOWN : request.birthdayTimingType(),
+                request.conditionSummary(),
+                request.requiredApp(),
+                request.requiredMembership(),
+                request.requiredPurchase(),
+                request.membershipGrade(),
+                request.usagePeriodDescription(),
+                request.availableFrom(),
+                request.availableTo(),
+                request.caution(),
+                verificationStatus,
+                resolveManualLastVerifiedAt(request),
+                isActive
+        );
+        Benefit savedBenefit = benefitRepository.save(benefit);
+
+        saveManualDetailItems(savedBenefit, request.detailItems());
+        saveManualSources(savedBenefit, request.sources());
+
+        verificationLogRepository.save(new VerificationLog(
+                savedBenefit,
+                VerificationStatus.DRAFT,
+                verificationStatus,
+                "수동 혜택 등록. 관리자가 공식 출처를 직접 확인함.",
+                null,
+                LocalDateTime.now()
+        ));
+
+        return toDetailResponse(savedBenefit);
+    }
+
+    @Transactional
     public BenefitDetailResponse updateBenefit(Long id, AdminBenefitUpdateRequest request) {
         Benefit benefit = getBenefitEntity(id);
         Brand brand = request.brandId() == null ? null : getBrand(request.brandId());
@@ -164,6 +214,9 @@ public class AdminBenefitService {
         LocalDate lastVerifiedAt = request.lastVerifiedAt();
         if (request.verificationStatus() == VerificationStatus.PUBLISHED && lastVerifiedAt == null) {
             lastVerifiedAt = LocalDate.now();
+        }
+        if (request.verificationStatus() == VerificationStatus.PUBLISHED && PublicExpressionPolicy.containsProhibitedTerms(benefit)) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "Public expression contains prohibited terms");
         }
         benefit.changeStatus(request.verificationStatus(), lastVerifiedAt);
         if (beforeStatus != request.verificationStatus()) {
@@ -273,6 +326,132 @@ public class AdminBenefitService {
     private Benefit getBenefitEntity(Long id) {
         return benefitRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Benefit not found"));
+    }
+
+    private void validateManualBenefitRequest(
+            AdminManualBenefitCreateRequest request,
+            VerificationStatus verificationStatus,
+            boolean isActive
+    ) {
+        if (request.sources() == null || request.sources().isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "At least one official source is required");
+        }
+        if (verificationStatus == VerificationStatus.PUBLISHED) {
+            if (!isActive) {
+                throw new BusinessException(ErrorCode.INVALID_REQUEST, "Published manual benefit must be active");
+            }
+            if (resolveManualLastVerifiedAt(request) == null) {
+                throw new BusinessException(ErrorCode.INVALID_REQUEST, "Published manual benefit requires last verified date");
+            }
+            Benefit probe = new Benefit(getBrand(request.brandId()), request.title(), request.summary(), request.benefitType());
+            probe.update(
+                    null,
+                    null,
+                    null,
+                    request.detail(),
+                    null,
+                    request.occasionType(),
+                    request.birthdayTimingType(),
+                    request.conditionSummary(),
+                    request.requiredApp(),
+                    request.requiredMembership(),
+                    request.requiredPurchase(),
+                    request.membershipGrade(),
+                    request.usagePeriodDescription(),
+                    request.availableFrom(),
+                    request.availableTo(),
+                    request.caution(),
+                    verificationStatus,
+                    resolveManualLastVerifiedAt(request),
+                    isActive
+            );
+            if (PublicExpressionPolicy.containsProhibitedTerms(probe) || containsManualPublishBlockedTerm(request)) {
+                throw new BusinessException(ErrorCode.INVALID_REQUEST, "Published manual benefit contains blocked terms");
+            }
+        }
+    }
+
+    private boolean containsManualPublishBlockedTerm(AdminManualBenefitCreateRequest request) {
+        String text = String.join("\n",
+                value(request.title()),
+                value(request.summary()),
+                value(request.detail()),
+                value(request.conditionSummary()),
+                value(request.usagePeriodDescription()),
+                value(request.caution())
+        );
+        return List.of("확인 필요", "임시", "테스트", "TODO", "미정").stream().anyMatch(text::contains);
+    }
+
+    private LocalDate resolveManualLastVerifiedAt(AdminManualBenefitCreateRequest request) {
+        if (request.lastVerifiedAt() != null) {
+            return request.lastVerifiedAt();
+        }
+        if (request.sources() == null || request.sources().isEmpty()) {
+            return null;
+        }
+        return request.sources().stream()
+                .map(AdminManualBenefitCreateRequest.ManualBenefitSourceRequest::sourceCheckedAt)
+                .filter(java.util.Objects::nonNull)
+                .max(LocalDate::compareTo)
+                .orElse(null);
+    }
+
+    private void saveManualDetailItems(
+            Benefit benefit,
+            List<AdminManualBenefitCreateRequest.ManualBenefitDetailItemRequest> detailItems
+    ) {
+        if (detailItems == null || detailItems.isEmpty()) {
+            return;
+        }
+        int fallbackOrder = 1;
+        for (AdminManualBenefitCreateRequest.ManualBenefitDetailItemRequest item : detailItems) {
+            if (!StringUtils.hasText(item.title())) {
+                fallbackOrder++;
+                continue;
+            }
+            BenefitDetailItem saved = benefitDetailItemRepository.save(new BenefitDetailItem(
+                    benefit,
+                    normalize(item.brandName()),
+                    item.title().trim(),
+                    normalize(item.description()),
+                    normalize(item.conditionText()),
+                    normalize(item.imageUrl()),
+                    item.displayOrder() == null ? fallbackOrder : item.displayOrder()
+            ));
+            if (item.isActive() != null) {
+                saved.changeActive(item.isActive());
+            }
+            fallbackOrder++;
+        }
+    }
+
+    private void saveManualSources(
+            Benefit benefit,
+            List<AdminManualBenefitCreateRequest.ManualBenefitSourceRequest> sources
+    ) {
+        for (AdminManualBenefitCreateRequest.ManualBenefitSourceRequest request : sources) {
+            BenefitSource source = new BenefitSource(benefit, request.sourceType(), request.sourceUrl());
+            source.update(
+                    null,
+                    null,
+                    normalize(request.sourceTitle()),
+                    request.sourceCheckedAt(),
+                    normalize(request.memo())
+            );
+            source.updateVerificationMetadata(
+                    request.sourceUrl(),
+                    request.sourceCheckedAt(),
+                    request.collectionMethod() == null ? CollectionMethod.MANUAL_VERIFIED : request.collectionMethod(),
+                    normalize(request.verificationSummary()),
+                    normalize(request.sourceNotice())
+            );
+            benefitSourceRepository.save(source);
+        }
+    }
+
+    private String value(String value) {
+        return value == null ? "" : value;
     }
 
     private Brand getBrand(Long id) {

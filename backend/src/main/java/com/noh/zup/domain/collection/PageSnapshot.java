@@ -41,6 +41,11 @@ public class PageSnapshot extends BaseTimeEntity {
     @Column(nullable = false)
     private LocalDateTime fetchedAt;
 
+    @Column(nullable = false)
+    private Boolean isForReviewOnly = false;
+
+    private LocalDateTime expiresAt;
+
     protected PageSnapshot() {
     }
 
@@ -61,6 +66,10 @@ public class PageSnapshot extends BaseTimeEntity {
         this.benefitDetailImageSources = benefitDetailImageSources;
         this.sameAsPrevious = sameAsPrevious;
         this.fetchedAt = LocalDateTime.now();
+        if (sourceWatch != null && sourceWatch.getCollectionPermissionStatus() != CollectionPermissionStatus.ALLOWED_TO_COLLECT) {
+            this.isForReviewOnly = true;
+            this.expiresAt = this.fetchedAt.plusDays(30);
+        }
     }
 
     public Long getId() {
@@ -89,5 +98,13 @@ public class PageSnapshot extends BaseTimeEntity {
 
     public LocalDateTime getFetchedAt() {
         return fetchedAt;
+    }
+
+    public Boolean getIsForReviewOnly() {
+        return isForReviewOnly;
+    }
+
+    public LocalDateTime getExpiresAt() {
+        return expiresAt;
     }
 }

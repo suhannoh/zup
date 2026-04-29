@@ -1,5 +1,6 @@
 package com.noh.zup.domain.source;
 
+import com.noh.zup.domain.collection.CollectionMethod;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -10,6 +11,11 @@ public record AdminBenefitSourceResponse(
         String sourceUrl,
         String sourceTitle,
         LocalDate sourceCheckedAt,
+        String officialSourceUrl,
+        LocalDate lastVerifiedDate,
+        CollectionMethod collectionMethod,
+        String verificationSummary,
+        String sourceNotice,
         String memo,
         Boolean isActive,
         LocalDateTime createdAt,
@@ -23,6 +29,11 @@ public record AdminBenefitSourceResponse(
                 source.getSourceUrl(),
                 source.getSourceTitle(),
                 source.getSourceCheckedAt(),
+                source.getOfficialSourceUrl(),
+                source.getLastVerifiedDate(),
+                source.getCollectionMethod(),
+                source.getVerificationSummary(),
+                source.getSourceNotice(),
                 source.getMemo(),
                 source.getIsActive(),
                 source.getCreatedAt(),

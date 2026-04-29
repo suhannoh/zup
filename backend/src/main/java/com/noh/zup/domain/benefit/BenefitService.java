@@ -114,9 +114,9 @@ public class BenefitService {
                 .toList();
     }
 
-    private List<BenefitDetailItemResponse> getActiveDetailItems(Benefit benefit) {
+    private List<PublicBenefitDetailItemResponse> getActiveDetailItems(Benefit benefit) {
         return benefitDetailItemRepository.findAllByBenefitIdAndIsActiveTrueOrderByDisplayOrderAscIdAsc(benefit.getId()).stream()
-                .map(BenefitDetailItemResponse::from)
+                .map(PublicBenefitDetailItemResponse::from)
                 .toList();
     }
 

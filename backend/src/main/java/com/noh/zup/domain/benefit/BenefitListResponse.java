@@ -27,13 +27,13 @@ public record BenefitListResponse(
         LocalDate lastVerifiedAt,
         List<BenefitTagResponse> tags,
         List<BenefitSourceResponse> sources,
-        List<BenefitDetailItemResponse> detailItems
+        List<PublicBenefitDetailItemResponse> detailItems
 ) {
     public static BenefitListResponse of(
             Benefit benefit,
             List<BenefitTagResponse> tags,
             List<BenefitSourceResponse> sources,
-            List<BenefitDetailItemResponse> detailItems
+            List<PublicBenefitDetailItemResponse> detailItems
     ) {
         return new BenefitListResponse(
                 benefit.getId(),

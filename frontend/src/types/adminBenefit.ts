@@ -92,6 +92,11 @@ export type AdminBenefitSourceSummary = {
   sourceUrl: string;
   sourceTitle: string | null;
   sourceCheckedAt: string | null;
+  officialSourceUrl: string | null;
+  lastVerifiedDate: string | null;
+  collectionMethod: string | null;
+  verificationSummary: string | null;
+  sourceNotice: string | null;
 };
 
 export type AdminBenefitCreateRequest = {
@@ -117,6 +122,33 @@ export type AdminBenefitCreateRequest = {
 };
 
 export type AdminBenefitUpdateRequest = Partial<AdminBenefitCreateRequest>;
+
+export type AdminManualBenefitDetailItemRequest = {
+  brandName?: string | null;
+  title: string;
+  description?: string | null;
+  conditionText?: string | null;
+  imageUrl?: string | null;
+  displayOrder?: number | null;
+  isActive?: boolean | null;
+};
+
+export type AdminManualBenefitSourceRequest = {
+  sourceType: string;
+  sourceUrl: string;
+  sourceTitle?: string | null;
+  sourceCheckedAt: string;
+  memo?: string | null;
+  collectionMethod?: "AUTO_COLLECTED" | "MANUAL_VERIFIED" | "MIXED" | "UNKNOWN" | null;
+  verificationSummary?: string | null;
+  sourceNotice?: string | null;
+};
+
+export type AdminManualBenefitCreateRequest = AdminBenefitCreateRequest & {
+  requiredSignup?: boolean | null;
+  detailItems?: AdminManualBenefitDetailItemRequest[];
+  sources: AdminManualBenefitSourceRequest[];
+};
 
 export type AdminBenefitSearchParams = {
   keyword?: string;

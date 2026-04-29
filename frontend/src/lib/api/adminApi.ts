@@ -8,6 +8,7 @@ import type {
   AdminBenefitCreateRequest,
   AdminBenefitDetailItem,
   AdminBenefitDetailItemRequest,
+  AdminManualBenefitCreateRequest,
   AdminBenefitSearchParams,
   AdminBenefitUpdateRequest,
   VerificationStatus,
@@ -158,6 +159,11 @@ export async function getAdminBenefit(benefitId: number) {
 
 export async function createAdminBenefit(request: AdminBenefitCreateRequest) {
   const response = await adminApiClient.post<ApiResponse<AdminBenefit>>("/api/v1/admin/benefits", request);
+  return response.data.data;
+}
+
+export async function createAdminManualBenefit(request: AdminManualBenefitCreateRequest) {
+  const response = await adminApiClient.post<ApiResponse<AdminBenefit>>("/api/v1/admin/benefits/manual", request);
   return response.data.data;
 }
 

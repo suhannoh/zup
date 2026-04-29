@@ -10,6 +10,12 @@ public record SourceWatchCreateRequest(
         @NotNull SourceType sourceType,
         @NotBlank @Size(max = 300) String title,
         @NotBlank @Size(max = 1000) String url,
-        Boolean isActive
+        Boolean isActive,
+        Boolean loginRequired,
+        RobotsCheckStatus robotsCheckStatus,
+        TermsCheckStatus termsCheckStatus,
+        CollectionMethod collectionMethod,
+        @Size(max = 2000) String policyCheckNote,
+        @Size(max = 2000) String manualVerificationNote
 ) {
 }

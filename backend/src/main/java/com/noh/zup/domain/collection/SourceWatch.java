@@ -41,6 +41,9 @@ public class SourceWatch extends BaseTimeEntity {
     @Column(nullable = false)
     private Boolean isActive = true;
 
+    @Column(nullable = false)
+    private Boolean loginRequired = false;
+
     private LocalDateTime lastFetchedAt;
 
     @Column(length = 64)
@@ -54,6 +57,32 @@ public class SourceWatch extends BaseTimeEntity {
     private Integer failureCount = 0;
 
     private LocalDateTime nextFetchAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 40)
+    private CollectionPermissionStatus collectionPermissionStatus = CollectionPermissionStatus.UNKNOWN_NEEDS_REVIEW;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private RobotsCheckStatus robotsCheckStatus = RobotsCheckStatus.UNKNOWN;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private TermsCheckStatus termsCheckStatus = TermsCheckStatus.NOT_CHECKED;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private CollectionMethod collectionMethod = CollectionMethod.UNKNOWN;
+
+    private LocalDateTime lastPolicyCheckedAt;
+
+    private LocalDateTime lastManualVerifiedAt;
+
+    @Column(columnDefinition = "text")
+    private String policyCheckNote;
+
+    @Column(columnDefinition = "text")
+    private String manualVerificationNote;
 
     protected SourceWatch() {
     }
@@ -82,6 +111,53 @@ public class SourceWatch extends BaseTimeEntity {
         }
     }
 
+    public void updatePolicy(
+            RobotsCheckStatus robotsCheckStatus,
+            TermsCheckStatus termsCheckStatus,
+            CollectionMethod collectionMethod,
+            Boolean loginRequired,
+            CollectionPermissionStatus manualPermissionStatus,
+            String policyCheckNote,
+            LocalDateTime lastPolicyCheckedAt,
+            String manualVerificationNote,
+            LocalDateTime lastManualVerifiedAt
+    ) {
+        if (robotsCheckStatus != null) {
+            this.robotsCheckStatus = robotsCheckStatus;
+        }
+        if (termsCheckStatus != null) {
+            this.termsCheckStatus = termsCheckStatus;
+        }
+        if (collectionMethod != null) {
+            this.collectionMethod = collectionMethod;
+        }
+        if (loginRequired != null) {
+            this.loginRequired = loginRequired;
+        }
+        if (policyCheckNote != null) {
+            this.policyCheckNote = policyCheckNote;
+        }
+        if (lastPolicyCheckedAt != null) {
+            this.lastPolicyCheckedAt = lastPolicyCheckedAt;
+        }
+        if (manualVerificationNote != null) {
+            this.manualVerificationNote = manualVerificationNote;
+        }
+        if (lastManualVerifiedAt != null) {
+            this.lastManualVerifiedAt = lastManualVerifiedAt;
+        }
+        this.collectionPermissionStatus = calculatePermissionStatus(manualPermissionStatus);
+    }
+
+    public void updateRobotsCheckStatus(RobotsCheckStatus robotsCheckStatus, String policyCheckNote) {
+        this.robotsCheckStatus = robotsCheckStatus == null ? RobotsCheckStatus.UNKNOWN : robotsCheckStatus;
+        this.lastPolicyCheckedAt = LocalDateTime.now();
+        if (policyCheckNote != null) {
+            this.policyCheckNote = policyCheckNote;
+        }
+        this.collectionPermissionStatus = calculatePermissionStatus(this.collectionPermissionStatus);
+    }
+
     public void changeActive(Boolean isActive) {
         this.isActive = isActive;
     }
@@ -106,6 +182,31 @@ public class SourceWatch extends BaseTimeEntity {
 
     public void updateNextFetchAt(LocalDateTime nextFetchAt) {
         this.nextFetchAt = nextFetchAt;
+    }
+
+    public CollectionPermissionStatus calculatePermissionStatus(CollectionPermissionStatus manualPermissionStatus) {
+        if (manualPermissionStatus == CollectionPermissionStatus.MANUAL_REVIEW_ONLY) {
+            return CollectionPermissionStatus.MANUAL_REVIEW_ONLY;
+        }
+        if (robotsCheckStatus == RobotsCheckStatus.DISALLOWED) {
+            return CollectionPermissionStatus.BLOCKED_BY_ROBOTS;
+        }
+        if (robotsCheckStatus == RobotsCheckStatus.FETCH_FAILED || robotsCheckStatus == RobotsCheckStatus.PARSE_FAILED) {
+            return CollectionPermissionStatus.UNKNOWN_NEEDS_REVIEW;
+        }
+        if (termsCheckStatus == TermsCheckStatus.RESTRICTION_FOUND) {
+            return CollectionPermissionStatus.BLOCKED_BY_TERMS;
+        }
+        if (termsCheckStatus == TermsCheckStatus.NOT_CHECKED || termsCheckStatus == TermsCheckStatus.NEEDS_REVIEW) {
+            return CollectionPermissionStatus.UNKNOWN_NEEDS_REVIEW;
+        }
+        if (Boolean.TRUE.equals(loginRequired)) {
+            return CollectionPermissionStatus.LOGIN_REQUIRED;
+        }
+        if (termsCheckStatus == TermsCheckStatus.NO_RESTRICTION_FOUND) {
+            return CollectionPermissionStatus.ALLOWED_TO_COLLECT;
+        }
+        return CollectionPermissionStatus.UNKNOWN_NEEDS_REVIEW;
     }
 
     public Long getId() {
@@ -150,5 +251,41 @@ public class SourceWatch extends BaseTimeEntity {
 
     public LocalDateTime getNextFetchAt() {
         return nextFetchAt;
+    }
+
+    public Boolean getLoginRequired() {
+        return loginRequired;
+    }
+
+    public CollectionPermissionStatus getCollectionPermissionStatus() {
+        return collectionPermissionStatus;
+    }
+
+    public RobotsCheckStatus getRobotsCheckStatus() {
+        return robotsCheckStatus;
+    }
+
+    public TermsCheckStatus getTermsCheckStatus() {
+        return termsCheckStatus;
+    }
+
+    public CollectionMethod getCollectionMethod() {
+        return collectionMethod;
+    }
+
+    public LocalDateTime getLastPolicyCheckedAt() {
+        return lastPolicyCheckedAt;
+    }
+
+    public LocalDateTime getLastManualVerifiedAt() {
+        return lastManualVerifiedAt;
+    }
+
+    public String getPolicyCheckNote() {
+        return policyCheckNote;
+    }
+
+    public String getManualVerificationNote() {
+        return manualVerificationNote;
     }
 }

@@ -304,3 +304,36 @@ Infra:
 - `/admin/source-watches` 카드에서 최근 CollectionRun 상태, 시각, 후보 생성 수, 실패/스킵 사유, robots.txt 확인 결과를 함께 확인한다.
 - 반복 실패가 누적되면 `failureCount`, `nextFetchAt` 기반 backoff를 다음 단계 개선 후보로 본다.
 - 외부 이미지 URL은 관리자 검수 참고용이다. Public 화면에는 기본적으로 외부 브랜드 로고/쿠폰 이미지를 직접 노출하지 않고 텍스트 정보와 공식 출처 링크를 우선한다.
+
+## 보수적 데이터 수집 정책 업데이트
+
+- Zup은 브랜드 공식 혜택 정보를 최소 요약해 제공하는 독립 정보 서비스이며, 브랜드와 공식 제휴 관계가 아니다. 쿠폰을 직접 발급하거나 판매하지 않는다.
+- 자동 수집은 `collectionPermissionStatus=ALLOWED_TO_COLLECT`인 SourceWatch에만 허용한다. `termsCheckStatus=NOT_CHECKED` 또는 `NEEDS_REVIEW`이면 자동 수집은 금지된다.
+- `robots.txt` 허용은 충분조건이 아니라 최소조건이다. robots 조회/파싱 실패, 약관 제한, 로그인 필요, 정책 불확실 상태는 모두 `SKIPPED`로 처리한다.
+- 관리자는 약관을 직접 확인하고 `termsCheckStatus`를 업데이트해야 한다. 관리자가 `ALLOWED_TO_COLLECT`로 수동 상향할 수 없고, 수동 강제는 `MANUAL_REVIEW_ONLY`만 허용한다.
+- Public 화면에는 브랜드 로고, 쿠폰 이미지, 이벤트 배너, 외부 이미지 URL을 노출하지 않는다. `BenefitDetailItem.imageUrl`은 public DTO에서 제외하고 admin 검수 참고용으로만 유지한다.
+- Public 혜택에는 공식 출처 URL과 최종 확인일을 우선 표시한다. 없으면 공식 출처 기준 정보이며 최신 내용은 공식 앱/홈페이지에서 확인하라는 fallback 문구를 표시한다.
+- `SourceWatch`가 `BLOCKED_BY_ROBOTS` 또는 `BLOCKED_BY_TERMS`로 전환되면 연관 미승인 `BenefitCandidate`는 `needsManualReview=true`로 전환한다.
+- robots-blocked 출처의 기존 `PageSnapshot`은 장기 보관하지 않는다. 이번 작업은 실제 DB row 삭제를 하지 않으며, `isForReviewOnly`/`expiresAt`로 30일 삭제 대상 표시를 지원한다.
+- 후보 `evidenceText`는 검수 근거 발췌로만 사용하고 원문 전문 복사 형태로 저장하지 않는다. 기존 snapshot과 후보는 운영자가 재검토 후 수동 정리한다.
+- Public 전환 시 금지어가 포함되면 warning이 아니라 block 처리한다. 대상 표현은 공식 쿠폰, 공식 제휴, 제휴 혜택, 인증 혜택, 보장, 확정, 무조건, 반드시 제공, Zup 단독, 최신 보장, 100% 사용 가능이다.
+
+## CJ ONE robots 차단 수동 전환
+
+- CJ ONE 생일축하쿠폰 안내 카드(`https://m.cjone.com/cjmmobile/guide/guidePrsCpnInfo.do`)는 `https://m.cjone.com/robots.txt`에서 일반 봇(`User-agent: *`)에 대한 `Disallow: /`가 확인되었으므로 Zup 자동 수집 대상에서 제외한다.
+- SourceWatch는 삭제하지 않는다. `isActive=false`, `collectionPermissionStatus=BLOCKED_BY_ROBOTS`, `robotsCheckStatus=DISALLOWED`로 수동 관리 근거를 남기고 공식 출처 URL은 유지한다.
+- 기존 공개 혜택은 유지한다. 다만 공식 출처 URL과 최종 확인일을 함께 표시하고, 30일 이상 지나면 재확인 대상으로 본다.
+- 기존 미승인 BenefitCandidate는 `needsManualReview=true`로 전환해 관리자 재검토 대상으로 표시한다. 반려 후보는 현행 유지한다.
+- robots 차단 SourceWatch는 수집 실행뿐 아니라 저장된 스냅샷 기반 후보 재생성도 차단한다. 차단된 사이트 데이터를 재사용할 수 있다는 오해를 줄이기 위함이다.
+- 개발/운영 DB 전환용 SQL 초안은 `docs/sql/20260429_cjone_robots_blocked_manual_transition.sql`에 있다. 실제 DB row 삭제는 이번 범위가 아니다.
+- `docs/CJONEexHtml.md` 같은 외부 사이트 HTML 전문 덤프는 커밋하지 않는다. 현재 저장소에는 해당 파일이 없으며, 샘플이 필요하면 10~30줄 이내 축약 샘플만 둔다.
+
+## 규칙 기반 혜택 추출 파이프라인 메모
+
+- OpenAI API 또는 외부 LLM API 없이 동작한다. 향후 AI 정제기는 optional 단계로만 붙일 수 있게 열어둔다.
+- `HtmlTextExtractor`는 페이지 전체 textContent 대신 DOM 블록 단위 후보 텍스트를 만든다. 대상은 `section`, `article`, `li`, `tr`, card/coupon/benefit/item/tab/accordion 계열 블록이다.
+- `BenefitCandidateDetector`는 블록 문맥을 분류해 생일 혜택 블록과 주변 조건/이용안내 블록만 후보 생성에 사용한다.
+- 일반 리워드/등급 혜택/푸터/FAQ/네비게이션 문맥은 후보에서 제외하고, 제외된 문구와 경고를 후보 메타데이터에 남긴다.
+- 후보 `evidenceText`는 최대 200자 발췌다. 관리자 검수 근거를 보여주는 목적이며 원문 전문 보관 수단이 아니다.
+- 후보 상세 관리자 화면은 신뢰도, 생일 문맥 근거, 경고 목록, 제외된 문구를 표시한다.
+- public API에는 이미지 URL을 포함하지 않는다. admin의 이미지 메타데이터는 검수 참고용으로만 유지한다.

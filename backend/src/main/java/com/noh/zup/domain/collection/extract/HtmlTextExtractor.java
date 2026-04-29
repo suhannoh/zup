@@ -1,6 +1,8 @@
 package com.noh.zup.domain.collection.extract;
 
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -17,6 +19,7 @@ public class HtmlTextExtractor {
 
     private static final int MIN_TEXT_LENGTH = 20;
     private static final int MAX_IMAGE_SOURCE_COUNT = 30;
+    public static final String BLOCK_SEPARATOR = "\n\n--- ZUP_BLOCK ---\n\n";
     private static final Pattern INLINE_BACKGROUND_IMAGE = Pattern.compile("url\\(['\"]?([^'\")]+)['\"]?\\)");
     private static final Pattern STANDALONE_DISCOUNT = Pattern.compile("^([0-9][0-9,]*\\s*(?:만원|원)?|[0-9]+\\s*%|[0-9]+\\s*퍼센트)\\s*(?:중복\\s*)?할인\\.?$");
     private static final Pattern CONDITION_ONLY = Pattern.compile("^[0-9][0-9,]*\\s*(?:만원|원)?\\s*이상\\s*(구매|주문|결제)\\s*시\\.?$");
@@ -64,6 +67,18 @@ public class HtmlTextExtractor {
             "gift",
             "combo"
     };
+    private static final String BLOCK_SELECTOR = String.join(", ",
+            "section",
+            "article",
+            "li",
+            "tr",
+            "[class*=card]",
+            "[class*=coupon]",
+            "[class*=benefit]",
+            "[class*=item]",
+            "[class*=tab]",
+            "[class*=accordion]"
+    );
 
     public ExtractedText extract(String html) {
         return extract(html, "");
@@ -78,6 +93,13 @@ public class HtmlTextExtractor {
         document.select(STRUCTURAL_NOISE_SELECTOR).remove();
         removeNoiseAttributeElements(document);
         String benefitDetailImageSources = extractBenefitDetailImageSources(document, baseUrl);
+        List<ExtractedBenefitBlock> blocks = extractBenefitBlocks(document);
+        String blockText = blocks.stream()
+                .map(block -> cleanText(String.join(" ", block.headingText(), block.text())))
+                .filter(StringUtils::hasText)
+                .distinct()
+                .reduce((left, right) -> left + BLOCK_SEPARATOR + right)
+                .orElse(null);
         for (Element element : document.select("h1, h2, h3, h4, h5, h6, p, li, dt, dd, tr, section, article, main, div")) {
             element.appendText("\n");
         }
@@ -88,11 +110,117 @@ public class HtmlTextExtractor {
                 .replaceAll(" *\\n+ *", "\n")
                 .replaceAll("\\n{3,}", "\n\n")
                 .trim();
-        if (normalized.length() < MIN_TEXT_LENGTH) {
+        String extracted = StringUtils.hasText(blockText) ? blockText : normalized;
+        if (extracted.length() < MIN_TEXT_LENGTH) {
             return ExtractedText.failure("Extracted text is too short");
         }
 
-        return ExtractedText.success(normalized, benefitDetailImageSources);
+        return ExtractedText.success(extracted, benefitDetailImageSources, blocks);
+    }
+
+    private List<ExtractedBenefitBlock> extractBenefitBlocks(Document document) {
+        List<ExtractedBenefitBlock> blocks = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        int index = 1;
+        for (Element element : document.select(BLOCK_SELECTOR)) {
+            String text = cleanText(element.text());
+            if (!StringUtils.hasText(text) || text.length() < 8 || text.length() > 1200) {
+                continue;
+            }
+            if (!isBenefitDetailText(text) && !containsBirthdayHint(text) && !containsConditionHint(text)) {
+                continue;
+            }
+            String key = element.tagName() + ":" + text;
+            if (!seen.add(key)) {
+                continue;
+            }
+            blocks.add(new ExtractedBenefitBlock(
+                    "block-" + index++,
+                    element.tagName(),
+                    nearestHeading(element),
+                    text,
+                    nearbyHeadings(element),
+                    imageSources(element),
+                    cssClassHints(element)
+            ));
+        }
+        return blocks;
+    }
+
+    private boolean containsBirthdayHint(String text) {
+        String lower = text.toLowerCase();
+        return lower.contains("생일") || lower.contains("birthday") || lower.contains("birth") || lower.contains("생년월일");
+    }
+
+    private boolean containsConditionHint(String text) {
+        return text.contains("유의사항") || text.contains("사용 조건") || text.contains("제외") || text.contains("중복") || text.contains("발급");
+    }
+
+    private String nearestHeading(Element element) {
+        Element current = element;
+        int depth = 0;
+        while (current != null && depth < 4) {
+            Element heading = current.selectFirst("h1, h2, h3, h4, h5, h6, [class*=title], [class*=heading]");
+            if (heading != null && StringUtils.hasText(heading.text())) {
+                return cleanText(heading.text());
+            }
+            current = current.parent();
+            depth++;
+        }
+        Element previous = element.previousElementSibling();
+        depth = 0;
+        while (previous != null && depth < 5) {
+            if (previous.is("h1, h2, h3, h4, h5, h6") && StringUtils.hasText(previous.text())) {
+                return cleanText(previous.text());
+            }
+            previous = previous.previousElementSibling();
+            depth++;
+        }
+        return "";
+    }
+
+    private List<String> nearbyHeadings(Element element) {
+        List<String> headings = new ArrayList<>();
+        String nearest = nearestHeading(element);
+        if (StringUtils.hasText(nearest)) {
+            headings.add(nearest);
+        }
+        Element parent = element.parent();
+        int depth = 0;
+        while (parent != null && depth < 3) {
+            for (Element heading : parent.select("> h1, > h2, > h3, > h4, > h5, > h6")) {
+                String text = cleanText(heading.text());
+                if (StringUtils.hasText(text) && !headings.contains(text)) {
+                    headings.add(text);
+                }
+            }
+            parent = parent.parent();
+            depth++;
+        }
+        return headings;
+    }
+
+    private List<ExtractedImageSource> imageSources(Element element) {
+        return element.select("img").stream()
+                .limit(5)
+                .map(image -> new ExtractedImageSource(
+                        resolveImageSrc(image, ""),
+                        cleanText(image.attr("alt")),
+                        cleanText(image.attr("title")),
+                        cleanText(image.attr("aria-label"))
+                ))
+                .toList();
+    }
+
+    private List<String> cssClassHints(Element element) {
+        List<String> hints = new ArrayList<>();
+        if (StringUtils.hasText(element.className())) {
+            hints.add(element.className());
+        }
+        if (StringUtils.hasText(element.id())) {
+            hints.add("#" + element.id());
+        }
+        return hints;
     }
 
     private void removeNoiseAttributeElements(Document document) {

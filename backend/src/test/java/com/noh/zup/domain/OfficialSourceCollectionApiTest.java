@@ -1133,7 +1133,10 @@ class OfficialSourceCollectionApiTest {
                                 "sourceType", "OFFICIAL_HOME",
                                 "title", title,
                                 "url", url,
-                                "isActive", true
+                                "isActive", true,
+                                "termsCheckStatus", "NO_RESTRICTION_FOUND",
+                                "collectionMethod", "AUTO_COLLECTED",
+                                "policyCheckNote", "test fixture policy pre-approved"
                         ))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("source watch created"))

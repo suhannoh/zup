@@ -40,6 +40,7 @@ public class SourceWatchService {
     private final PageSnapshotRepository pageSnapshotRepository;
     private final BrandRepository brandRepository;
     private final CollectionRunRepository collectionRunRepository;
+    private final BenefitCandidateRepository benefitCandidateRepository;
     private final OfficialSourceFetcher officialSourceFetcher;
     private final RobotsTxtChecker robotsTxtChecker;
     private final HtmlTextExtractor htmlTextExtractor;
@@ -53,6 +54,7 @@ public class SourceWatchService {
             PageSnapshotRepository pageSnapshotRepository,
             BrandRepository brandRepository,
             CollectionRunRepository collectionRunRepository,
+            BenefitCandidateRepository benefitCandidateRepository,
             OfficialSourceFetcher officialSourceFetcher,
             RobotsTxtChecker robotsTxtChecker,
             HtmlTextExtractor htmlTextExtractor,
@@ -65,6 +67,7 @@ public class SourceWatchService {
         this.pageSnapshotRepository = pageSnapshotRepository;
         this.brandRepository = brandRepository;
         this.collectionRunRepository = collectionRunRepository;
+        this.benefitCandidateRepository = benefitCandidateRepository;
         this.officialSourceFetcher = officialSourceFetcher;
         this.robotsTxtChecker = robotsTxtChecker;
         this.htmlTextExtractor = htmlTextExtractor;
@@ -98,6 +101,17 @@ public class SourceWatchService {
                 request.url(),
                 request.isActive()
         );
+        sourceWatch.updatePolicy(
+                request.robotsCheckStatus(),
+                request.termsCheckStatus(),
+                request.collectionMethod(),
+                request.loginRequired(),
+                null,
+                request.policyCheckNote(),
+                LocalDateTime.now(),
+                request.manualVerificationNote(),
+                null
+        );
         return SourceWatchResponse.from(sourceWatchRepository.save(sourceWatch), null);
     }
 
@@ -107,7 +121,23 @@ public class SourceWatchService {
         if (request.sourceType() != null) {
             validateOfficialSourceType(request.sourceType());
         }
+        validateManualPermissionStatus(request.collectionPermissionStatus());
         sourceWatch.update(request.sourceType(), request.title(), request.url(), request.isActive());
+        CollectionPermissionStatus before = sourceWatch.getCollectionPermissionStatus();
+        sourceWatch.updatePolicy(
+                request.robotsCheckStatus(),
+                request.termsCheckStatus(),
+                request.collectionMethod(),
+                request.loginRequired(),
+                request.collectionPermissionStatus(),
+                request.policyCheckNote(),
+                LocalDateTime.now(),
+                request.manualVerificationNote(),
+                request.manualVerificationNote() == null ? null : LocalDateTime.now()
+        );
+        if (becameBlocked(before, sourceWatch.getCollectionPermissionStatus())) {
+            benefitCandidateRepository.markUnapprovedAsNeedsManualReview(sourceWatch.getId());
+        }
         return SourceWatchResponse.from(sourceWatch, getRecentRun(sourceWatch.getId()));
     }
 
@@ -129,6 +159,27 @@ public class SourceWatchService {
         CollectionRun collectionRun = collectionRunRepository.save(
                 new CollectionRun(sourceWatch, CollectionTriggerType.MANUAL_REGENERATE_CANDIDATES)
         );
+        SkippedReason skippedReason = getPolicySkippedReason(sourceWatch);
+        if (skippedReason != null) {
+            sourceWatch.markSkipped();
+            collectionRun.completeSkipped(
+                    skippedReason.name(),
+                    "정책상 자동 수집 및 후보 재생성이 차단된 출처입니다. 공식 페이지를 직접 확인한 뒤 수동으로 등록하거나 수정해 주세요."
+            );
+            if (sourceWatch.getCollectionPermissionStatus() == CollectionPermissionStatus.BLOCKED_BY_ROBOTS
+                    || sourceWatch.getCollectionPermissionStatus() == CollectionPermissionStatus.BLOCKED_BY_TERMS) {
+                benefitCandidateRepository.markUnapprovedAsNeedsManualReview(sourceWatch.getId());
+            }
+            return new SourceWatchRegenerateCandidatesResponse(
+                    sourceWatch.getId(),
+                    collectionRun.getId(),
+                    null,
+                    0,
+                    0,
+                    skippedReason.name(),
+                    "정책상 후보 재생성이 차단되었습니다."
+            );
+        }
         Optional<PageSnapshot> snapshot = pageSnapshotRepository.findTopBySourceWatchIdOrderByFetchedAtDescIdDesc(id);
         if (snapshot.isEmpty()) {
             collectionRun.completeSkipped("SNAPSHOT_NOT_FOUND", "재생성할 스냅샷이 없습니다.");
@@ -188,6 +239,11 @@ public class SourceWatchService {
                 return createSkippedResponse(sourceWatch, triggerType, "SOURCE_WATCH_INACTIVE", "비활성 SourceWatch라 수집을 건너뛰었습니다.");
             }
 
+            SkippedReason policySkippedReason = getPolicySkippedReason(sourceWatch);
+            if (policySkippedReason != null) {
+                return createSkippedResponse(sourceWatch, triggerType, policySkippedReason.name(), "정책상 자동 수집 대상이 아니므로 건너뛰었습니다.");
+            }
+
             DomainRateLimitResult domainRateLimitResult = checkDomainRateLimit(sourceWatch);
             if (domainRateLimitResult.rateLimited()) {
                 return createSkippedResponse(
@@ -201,8 +257,12 @@ public class SourceWatchService {
             CollectionRun collectionRun = collectionRunRepository.save(new CollectionRun(sourceWatch, triggerType));
             try {
                 RobotsTxtCheckResult robotsTxtCheckResult = robotsTxtChecker.check(sourceWatch.getUrl());
+                sourceWatch.updateRobotsCheckStatus(toRobotsCheckStatus(robotsTxtCheckResult), buildRobotsErrorMessage(robotsTxtCheckResult));
                 if (!robotsTxtCheckResult.allowed()) {
                     sourceWatch.markSkipped();
+                    if (sourceWatch.getCollectionPermissionStatus() == CollectionPermissionStatus.BLOCKED_BY_ROBOTS) {
+                        benefitCandidateRepository.markUnapprovedAsNeedsManualReview(sourceWatch.getId());
+                    }
                     String errorMessage = buildRobotsErrorMessage(robotsTxtCheckResult);
                     collectionRun.completeSkipped(robotsTxtCheckResult.failureReason(), errorMessage);
                     return new SourceWatchCollectResponse(
@@ -213,6 +273,11 @@ public class SourceWatchService {
                             robotsTxtCheckResult.failureReason(),
                             robotsTxtCheckResult.message()
                     );
+                }
+                if (sourceWatch.getCollectionPermissionStatus() != CollectionPermissionStatus.ALLOWED_TO_COLLECT) {
+                    collectionRun.completeSkipped(SkippedReason.COLLECTION_PERMISSION_NOT_APPROVED.name(), "robots.txt 확인 후 정책상 자동 수집 대상이 아니므로 건너뛰었습니다.");
+                    sourceWatch.markSkipped();
+                    return new SourceWatchCollectResponse(id, false, false, 0, SkippedReason.COLLECTION_PERMISSION_NOT_APPROVED.name(), "정책상 건너뜀");
                 }
 
                 FetchResult fetchResult = officialSourceFetcher.fetch(sourceWatch.getUrl());
@@ -266,6 +331,46 @@ public class SourceWatchService {
             builder.append(" matchedRule: ").append(result.matchedRule());
         }
         return builder.toString();
+    }
+
+    private SkippedReason getPolicySkippedReason(SourceWatch sourceWatch) {
+        if (sourceWatch.getRobotsCheckStatus() == RobotsCheckStatus.DISALLOWED) {
+            return SkippedReason.ROBOTS_TXT_DISALLOWED;
+        }
+        if (sourceWatch.getRobotsCheckStatus() == RobotsCheckStatus.FETCH_FAILED) {
+            return SkippedReason.ROBOTS_TXT_FETCH_FAILED;
+        }
+        if (sourceWatch.getRobotsCheckStatus() == RobotsCheckStatus.PARSE_FAILED) {
+            return SkippedReason.ROBOTS_TXT_PARSE_FAILED;
+        }
+        if (sourceWatch.getTermsCheckStatus() == TermsCheckStatus.RESTRICTION_FOUND) {
+            return SkippedReason.TERMS_RESTRICTION_FOUND;
+        }
+        if (sourceWatch.getTermsCheckStatus() == TermsCheckStatus.NOT_CHECKED) {
+            return SkippedReason.TERMS_NOT_CHECKED;
+        }
+        if (sourceWatch.getTermsCheckStatus() == TermsCheckStatus.NEEDS_REVIEW) {
+            return SkippedReason.UNKNOWN_POLICY_NEEDS_REVIEW;
+        }
+        if (sourceWatch.getCollectionPermissionStatus() == CollectionPermissionStatus.LOGIN_REQUIRED) {
+            return SkippedReason.LOGIN_REQUIRED_SOURCE;
+        }
+        if (sourceWatch.getCollectionPermissionStatus() != CollectionPermissionStatus.ALLOWED_TO_COLLECT) {
+            return SkippedReason.COLLECTION_PERMISSION_NOT_APPROVED;
+        }
+        return null;
+    }
+
+    private RobotsCheckStatus toRobotsCheckStatus(RobotsTxtCheckResult result) {
+        if (result.allowed()) {
+            return "robots.txt not found".equals(result.matchedRule()) ? RobotsCheckStatus.NOT_FOUND : RobotsCheckStatus.ALLOWED;
+        }
+        return switch (result.failureReason()) {
+            case "ROBOTS_TXT_DISALLOWED" -> RobotsCheckStatus.DISALLOWED;
+            case "ROBOTS_TXT_FETCH_FAILED" -> RobotsCheckStatus.FETCH_FAILED;
+            case "ROBOTS_TXT_PARSE_FAILED" -> RobotsCheckStatus.PARSE_FAILED;
+            default -> RobotsCheckStatus.UNKNOWN;
+        };
     }
 
     @Transactional
@@ -357,6 +462,16 @@ public class SourceWatchService {
         if (sourceType == SourceType.BLOG_REFERENCE || sourceType == SourceType.COMMUNITY_REFERENCE) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST, "Only official source URLs can be watched");
         }
+    }
+
+    private void validateManualPermissionStatus(CollectionPermissionStatus status) {
+        if (status == CollectionPermissionStatus.ALLOWED_TO_COLLECT) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "ALLOWED_TO_COLLECT cannot be set manually");
+        }
+    }
+
+    private boolean becameBlocked(CollectionPermissionStatus before, CollectionPermissionStatus after) {
+        return before != after && (after == CollectionPermissionStatus.BLOCKED_BY_ROBOTS || after == CollectionPermissionStatus.BLOCKED_BY_TERMS);
     }
 
     private String sha256(String value) {

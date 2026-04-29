@@ -60,6 +60,13 @@ public class AdminBenefitController {
         return ApiResponse.success(adminBenefitService.createBenefit(request), "benefit created");
     }
 
+    @PostMapping("/benefits/manual")
+    public ApiResponse<BenefitDetailResponse> createManualBenefit(
+            @Valid @RequestBody AdminManualBenefitCreateRequest request
+    ) {
+        return ApiResponse.success(adminBenefitService.createManualBenefit(request), "manual benefit created");
+    }
+
     @PatchMapping("/benefits/{id}")
     public ApiResponse<BenefitDetailResponse> updateBenefit(
             @PathVariable Long id,

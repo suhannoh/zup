@@ -149,6 +149,11 @@ export function AdminBenefitCandidatesPanel() {
                   <span className={`rounded-full px-3 py-1 text-xs font-semibold ${CANDIDATE_STATUS_CLASS[candidate.status]}`}>
                     {CANDIDATE_STATUS_LABELS[candidate.status]}
                   </span>
+                  {candidate.needsManualReview ? (
+                    <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
+                      수동 재검토 필요
+                    </span>
+                  ) : null}
                 </div>
                 <p className="mt-1 text-sm text-neutral-500">
                   {candidate.brandName} · 신뢰도 {Number(candidate.confidence).toFixed(2)}
@@ -159,6 +164,11 @@ export function AdminBenefitCandidatesPanel() {
               </Link>
             </div>
             <p className="mt-4 text-sm leading-6 text-neutral-700">{candidate.summary}</p>
+            {candidate.needsManualReview ? (
+              <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-800">
+                이 후보는 현재 자동 수집이 차단된 출처에서 생성된 항목입니다. 공식 페이지를 직접 확인한 뒤 내용을 검수하거나 반려해 주세요.
+              </p>
+            ) : null}
             <dl className="mt-4 grid gap-3 text-sm md:grid-cols-4">
               <Info label="수집 출처명" value={candidate.sourceWatchTitle} />
               <Info label="SourceWatch ID" value={String(candidate.sourceWatchId)} />

@@ -15,6 +15,7 @@ import com.noh.zup.domain.brand.BrandRepository;
 import com.noh.zup.domain.category.CategoryRepository;
 import com.noh.zup.domain.tag.TagRepository;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -260,6 +261,55 @@ class AdminApiControllerTest {
     }
 
     @Test
+    void createManualBenefitVerifiedStoresDetailItemsAndSources() throws Exception {
+        Long brandId = brandRepository.findBySlug("cgv").orElseThrow().getId();
+
+        MvcResult result = mockMvc.perform(post("/api/v1/admin/benefits/manual")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(manualBenefitRequest(brandId, "VERIFIED", List.of(manualSource())))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("manual benefit created"))
+                .andExpect(jsonPath("$.data.verificationStatus").value("VERIFIED"))
+                .andExpect(jsonPath("$.data.detailItems", hasSize(1)))
+                .andExpect(jsonPath("$.data.detailItems[0].title").value("50% 할인"))
+                .andExpect(jsonPath("$.data.sources", hasSize(1)))
+                .andExpect(jsonPath("$.data.sources[0].collectionMethod").value("MANUAL_VERIFIED"))
+                .andReturn();
+
+        Long benefitId = objectMapper.readTree(result.getResponse().getContentAsString()).get("data").get("id").asLong();
+        mockMvc.perform(get("/api/v1/brands/cgv"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.benefits[?(@.id == " + benefitId + ")]", hasSize(0)));
+    }
+
+    @Test
+    void createManualBenefitPublishedWithoutSourceFails() throws Exception {
+        Long brandId = brandRepository.findBySlug("cgv").orElseThrow().getId();
+
+        mockMvc.perform(post("/api/v1/admin/benefits/manual")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(manualBenefitRequest(brandId, "PUBLISHED", List.of()))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createManualBenefitPublishedAppearsInPublicApi() throws Exception {
+        Long brandId = brandRepository.findBySlug("cgv").orElseThrow().getId();
+
+        MvcResult result = mockMvc.perform(post("/api/v1/admin/benefits/manual")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(manualBenefitRequest(brandId, "PUBLISHED", List.of(manualSource())))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.verificationStatus").value("PUBLISHED"))
+                .andReturn();
+
+        Long benefitId = objectMapper.readTree(result.getResponse().getContentAsString()).get("data").get("id").asLong();
+        mockMvc.perform(get("/api/v1/brands/cgv"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.benefits[?(@.id == " + benefitId + ")]", hasSize(1)));
+    }
+
+    @Test
     void createReportSucceeds() throws Exception {
         mockMvc.perform(post("/api/v1/reports")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -461,6 +511,49 @@ class AdminApiControllerTest {
 
         JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
         return response.get("data").get("id").asLong();
+    }
+
+    private Map<String, Object> manualBenefitRequest(
+            Long brandId,
+            String verificationStatus,
+            List<Map<String, Object>> sources
+    ) {
+        Map<String, Object> request = new HashMap<>();
+        request.put("brandId", brandId);
+        request.put("title", "수동 등록 생일 혜택");
+        request.put("summary", "관리자가 공식 페이지를 직접 확인해 등록한 생일 혜택입니다.");
+        request.put("benefitType", "COUPON");
+        request.put("occasionType", "BIRTHDAY");
+        request.put("birthdayTimingType", "UNKNOWN");
+        request.put("requiredApp", false);
+        request.put("requiredSignup", true);
+        request.put("requiredMembership", true);
+        request.put("requiredPurchase", true);
+        request.put("conditionSummary", "쿠폰별 사용 조건은 공식 안내를 확인해야 합니다.");
+        request.put("usagePeriodDescription", "회원정보에 등록된 생년월일 기준으로 발급됩니다.");
+        request.put("caution", "쿠폰은 현금으로 교환하거나 양도할 수 없습니다.");
+        request.put("verificationStatus", verificationStatus);
+        request.put("isActive", true);
+        request.put("detailItems", List.of(Map.of(
+                "brandName", "CGV",
+                "title", "50% 할인",
+                "conditionText", "매점 콤보 구매 시",
+                "displayOrder", 1,
+                "isActive", true
+        )));
+        request.put("sources", sources);
+        return request;
+    }
+
+    private Map<String, Object> manualSource() {
+        return Map.of(
+                "sourceType", "OFFICIAL_HOME",
+                "sourceUrl", "https://example.com/manual-source",
+                "sourceTitle", "공식 안내 페이지",
+                "sourceCheckedAt", "2026-04-29",
+                "memo", "관리자가 공식 페이지 직접 확인",
+                "collectionMethod", "MANUAL_VERIFIED"
+        );
     }
 
     private Long createReport(String content, String reportType) throws Exception {

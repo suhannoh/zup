@@ -370,6 +370,15 @@ export function AdminBenefitsPanel() {
 
   return (
     <section className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-white p-4">
+        <div>
+          <h1 className="text-xl font-bold text-neutral-950">공개 혜택 관리</h1>
+          <p className="mt-1 text-sm text-neutral-500">수동 등록, 공개 전환, 기존 혜택 수정을 관리합니다.</p>
+        </div>
+        <Link className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white" href="/admin/benefits/new">
+          수동 혜택 등록
+        </Link>
+      </div>
       <div className="rounded-lg border border-border bg-white p-4">
         <div className="grid gap-3 lg:grid-cols-4">
           <FilterInput label="검색어" value={keyword} onChange={setKeyword} />
