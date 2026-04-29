@@ -3,11 +3,9 @@ import Link from "next/link";
 import { BrandCard } from "@/components/public/BrandCard";
 import { CategoryPill } from "@/components/public/CategoryPill";
 import { SectionHeader } from "@/components/public/SectionHeader";
-import { TagPill } from "@/components/public/TagPill";
-import { getBrands, getCategories, getTags } from "@/lib/api/publicApi";
+import { getBrands, getCategories } from "@/lib/api/publicApi";
 import type { BrandListItem } from "@/types/brand";
 import type { Category } from "@/types/category";
-import type { Tag } from "@/types/tag";
 
 export const dynamic = "force-dynamic";
 
@@ -29,18 +27,10 @@ async function safeList<T>(loader: () => Promise<T[]>) {
 }
 
 export default async function HomePage() {
-  const [categories, tags, brands] = await Promise.all([
+  const [categories, brands] = await Promise.all([
     safeList<Category>(getCategories),
-    safeList<Tag>(getTags),
     safeList<BrandListItem>(() => getBrands()),
   ]);
-
-  const quickTags = tags.filter((tag) =>
-    ["free", "no-app-required", "birthday-month"].includes(tag.slug)
-  );
-  const quickCategories = categories.filter((category) =>
-    ["cafe", "movie-culture", "beauty"].includes(category.slug)
-  );
 
   return (
     <div className="space-y-16 py-6 md:py-12">
@@ -62,23 +52,6 @@ export default async function HomePage() {
             정보 제보하기
           </Link>
         </div>
-        <div className="mt-6 flex flex-wrap gap-2">
-          {quickTags.map((tag) => (
-            <TagPill key={tag.slug} tag={tag} />
-          ))}
-          {quickCategories.map((category) => (
-            <CategoryPill key={category.slug} category={category} />
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <SectionHeader title="카테고리 바로가기" description="관심 있는 브랜드 유형별로 생일 혜택을 확인하세요." />
-        <div className="flex flex-wrap gap-3">
-          {categories.map((category) => (
-            <CategoryPill key={category.slug} category={category} />
-          ))}
-        </div>
       </section>
 
       <section>
@@ -91,6 +64,11 @@ export default async function HomePage() {
             </Link>
           }
         />
+        <div className="mb-6 flex flex-wrap gap-3">
+          {categories.map((category) => (
+            <CategoryPill key={category.slug} category={category} />
+          ))}
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {brands.slice(0, 6).map((brand) => (
             <BrandCard key={brand.slug} brand={brand} />
