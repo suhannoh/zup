@@ -305,20 +305,54 @@ class AdminApiControllerTest {
 
         mockMvc.perform(get("/api/v1/admin/benefits?keyword=Summary DTO benefit"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].id").value(benefitId))
-                .andExpect(jsonPath("$.data[0].detailItemCount").exists())
-                .andExpect(jsonPath("$.data[0].sourceCount").value(1))
-                .andExpect(jsonPath("$.data[0].tagCount").value(1))
-                .andExpect(jsonPath("$.data[0].detailItems").doesNotExist())
-                .andExpect(jsonPath("$.data[0].sources").doesNotExist())
-                .andExpect(jsonPath("$.data[0].tags").doesNotExist())
-                .andExpect(jsonPath("$.data[0].conditionSummary").doesNotExist());
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].id").value(benefitId))
+                .andExpect(jsonPath("$.data.items[0].detailItemCount").exists())
+                .andExpect(jsonPath("$.data.items[0].sourceCount").value(1))
+                .andExpect(jsonPath("$.data.items[0].tagCount").value(1))
+                .andExpect(jsonPath("$.data.items[0].detailItems").doesNotExist())
+                .andExpect(jsonPath("$.data.items[0].sources").doesNotExist())
+                .andExpect(jsonPath("$.data.items[0].tags").doesNotExist())
+                .andExpect(jsonPath("$.data.items[0].conditionSummary").doesNotExist())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.totalPages").value(1))
+                .andExpect(jsonPath("$.data.hasNext").value(false));
 
         mockMvc.perform(get("/api/v1/admin/benefits/{id}", benefitId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.sources", hasSize(1)))
                 .andExpect(jsonPath("$.data.tags", hasSize(1)));
+    }
+
+    @Test
+    void adminBenefitsSupportPageSizeMaxSizeNegativePageAndFilterMetadata() throws Exception {
+        Long brandId = brandRepository.findBySlug("starbucks").orElseThrow().getId();
+        createBenefit(brandId, "Pagination benefit alpha", VerificationStatus.VERIFIED);
+        createBenefit(brandId, "Pagination benefit beta", VerificationStatus.VERIFIED);
+        createBenefit(brandId, "Pagination benefit gamma", VerificationStatus.VERIFIED);
+
+        mockMvc.perform(get("/api/v1/admin/benefits?keyword=Pagination benefit&page=0&size=2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", hasSize(2)))
+                .andExpect(jsonPath("$.data.page").value(0))
+                .andExpect(jsonPath("$.data.size").value(2))
+                .andExpect(jsonPath("$.data.totalElements").value(3))
+                .andExpect(jsonPath("$.data.totalPages").value(2))
+                .andExpect(jsonPath("$.data.hasNext").value(true))
+                .andExpect(jsonPath("$.data.hasPrevious").value(false));
+
+        mockMvc.perform(get("/api/v1/admin/benefits?keyword=Pagination benefit&page=1&size=2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.page").value(1))
+                .andExpect(jsonPath("$.data.hasNext").value(false))
+                .andExpect(jsonPath("$.data.hasPrevious").value(true));
+
+        mockMvc.perform(get("/api/v1/admin/benefits?keyword=Pagination benefit&page=-1&size=101"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.page").value(0))
+                .andExpect(jsonPath("$.data.size").value(100))
+                .andExpect(jsonPath("$.data.totalElements").value(3));
     }
 
     @Test

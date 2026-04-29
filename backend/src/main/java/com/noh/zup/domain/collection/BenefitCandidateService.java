@@ -2,6 +2,7 @@ package com.noh.zup.domain.collection;
 
 import com.noh.zup.common.exception.BusinessException;
 import com.noh.zup.common.exception.ErrorCode;
+import com.noh.zup.common.response.PageResponse;
 import com.noh.zup.domain.benefit.Benefit;
 import com.noh.zup.domain.benefit.BenefitDetailItem;
 import com.noh.zup.domain.benefit.BenefitDetailItemRepository;
@@ -22,12 +23,16 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Service
 public class BenefitCandidateService {
+    private static final int DEFAULT_PAGE_SIZE = 20;
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final BenefitCandidateRepository benefitCandidateRepository;
     private final BenefitRepository benefitRepository;
@@ -53,29 +58,31 @@ public class BenefitCandidateService {
     }
 
     @Transactional(readOnly = true)
-    public List<BenefitCandidateSummaryResponse> getCandidates(
+    public PageResponse<BenefitCandidateSummaryResponse> getCandidates(
             Long sourceWatchId,
             Long collectionRunId,
             BenefitCandidateStatus status,
             String keyword,
-            Integer limit
+            Integer page,
+            Integer size
     ) {
         String normalizedKeyword = normalize(keyword);
-        List<BenefitCandidate> candidates = benefitCandidateRepository.findAllByOrderByIdDesc();
-        Map<Long, Long> collectionRunIdBySnapshotId = getCollectionRunIdBySnapshotId(candidates);
-
-        return candidates.stream()
-                .filter(candidate -> sourceWatchId == null || candidate.getSourceWatch().getId().equals(sourceWatchId))
-                .filter(candidate -> status == null || candidate.getStatus() == status)
-                .filter(candidate -> matchesKeyword(candidate, normalizedKeyword))
-                .filter(candidate -> collectionRunId == null
-                        || collectionRunId.equals(resolveCollectionRunId(candidate, collectionRunIdBySnapshotId)))
-                .limit(normalizeLimit(limit))
+        String lowerKeyword = normalizedKeyword == null ? null : normalizedKeyword.toLowerCase(Locale.ROOT);
+        Page<BenefitCandidate> candidates = benefitCandidateRepository.searchAdminCandidates(
+                sourceWatchId,
+                collectionRunId,
+                status,
+                lowerKeyword,
+                PageRequest.of(normalizePage(page), normalizeSize(size))
+        );
+        Map<Long, Long> collectionRunIdBySnapshotId = getCollectionRunIdBySnapshotId(candidates.getContent());
+        List<BenefitCandidateSummaryResponse> items = candidates.stream()
                 .map(candidate -> BenefitCandidateSummaryResponse.from(
                         candidate,
                         resolveCollectionRunId(candidate, collectionRunIdBySnapshotId)
                 ))
                 .toList();
+        return PageResponse.from(candidates, items);
     }
 
     @Transactional(readOnly = true)
@@ -229,25 +236,18 @@ public class BenefitCandidateService {
         return collectionRunIdBySnapshotId.get(candidate.getSnapshot().getId());
     }
 
-    private boolean matchesKeyword(BenefitCandidate candidate, String keyword) {
-        if (keyword == null) {
-            return true;
+    private int normalizePage(Integer page) {
+        if (page == null || page < 0) {
+            return 0;
         }
-        return contains(candidate.getTitle(), keyword)
-                || contains(candidate.getSummary(), keyword)
-                || contains(candidate.getBrand().getName(), keyword)
-                || contains(candidate.getSourceWatch().getTitle(), keyword);
+        return page;
     }
 
-    private boolean contains(String value, String keyword) {
-        return value != null && value.toLowerCase(Locale.ROOT).contains(keyword.toLowerCase(Locale.ROOT));
-    }
-
-    private int normalizeLimit(Integer limit) {
-        if (limit == null || limit < 1) {
-            return 100;
+    private int normalizeSize(Integer size) {
+        if (size == null || size < 1) {
+            return DEFAULT_PAGE_SIZE;
         }
-        return Math.min(limit, 200);
+        return Math.min(size, MAX_PAGE_SIZE);
     }
 
     private void validateApprovable(BenefitCandidate candidate) {

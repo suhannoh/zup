@@ -1,7 +1,7 @@
 import axios from "axios";
 import { apiClient } from "./client";
 import { clearAdminAuth, getAdminAccessToken } from "@/lib/adminAuth";
-import type { ApiResponse } from "@/types/api";
+import type { ApiResponse, PageResponse } from "@/types/api";
 import type { AdminLoginRequest, AdminLoginResponse } from "@/types/adminAuth";
 import type {
   AdminBenefit,
@@ -148,7 +148,7 @@ export async function updateAdminBrandActive(brandId: number, request: { isActiv
 }
 
 export async function getAdminBenefits(params?: AdminBenefitSearchParams) {
-  const response = await adminApiClient.get<ApiResponse<AdminBenefitSummary[]>>("/api/v1/admin/benefits", {
+  const response = await adminApiClient.get<ApiResponse<PageResponse<AdminBenefitSummary>>>("/api/v1/admin/benefits", {
     params: compactParams(params),
   });
   return response.data.data;
@@ -346,7 +346,7 @@ export async function regenerateSourceWatchCandidates(sourceWatchId: number) {
 }
 
 export async function getBenefitCandidates(params?: BenefitCandidateSearchParams) {
-  const response = await adminApiClient.get<ApiResponse<BenefitCandidateSummary[]>>("/api/v1/admin/benefit-candidates", {
+  const response = await adminApiClient.get<ApiResponse<PageResponse<BenefitCandidateSummary>>>("/api/v1/admin/benefit-candidates", {
     params: compactParams(params),
   });
   return response.data.data;
@@ -382,7 +382,7 @@ export async function approveBenefitCandidate(
 }
 
 export async function getCollectionRuns(params?: CollectionRunSearchParams) {
-  const response = await adminApiClient.get<ApiResponse<CollectionRun[]>>("/api/v1/admin/collection-runs", {
+  const response = await adminApiClient.get<ApiResponse<PageResponse<CollectionRun>>>("/api/v1/admin/collection-runs", {
     params: compactParams(params),
   });
   return response.data.data;

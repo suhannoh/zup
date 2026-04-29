@@ -11,6 +11,7 @@ import {
   COLLECTION_STATUS_LABELS,
   TRIGGER_TYPE_LABELS,
 } from "@/lib/adminLabels";
+import type { PageResponse } from "@/types/api";
 import type { CollectionRun, CollectionRunSearchParams, CollectionRunStatus } from "@/types/collectionRun";
 
 const failureReasonOptions = [
@@ -47,6 +48,7 @@ function shortText(value: string | null, maxLength = 180) {
 export function AdminCollectionRunsPanel() {
   const searchParams = useSearchParams();
   const [runs, setRuns] = useState<CollectionRun[]>([]);
+  const [pageData, setPageData] = useState<PageResponse<CollectionRun> | null>(null);
   const [statusFilter, setStatusFilter] = useState<CollectionRunStatus | "ALL">(
     (searchParams.get("status") as CollectionRunStatus | "ALL") ?? "ALL"
   );
@@ -57,6 +59,8 @@ export function AdminCollectionRunsPanel() {
   const debouncedKeyword = useDebouncedValue(keyword, 300);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(Number(searchParams.get("page") ?? 0) || 0);
+  const pageSize = 20;
 
   const params = useMemo<CollectionRunSearchParams>(
     () => ({
@@ -64,10 +68,15 @@ export function AdminCollectionRunsPanel() {
       failureReason: failureReasonFilter === "ALL" ? undefined : failureReasonFilter,
       sourceWatchId: debouncedSourceWatchIdFilter.trim() ? Number(debouncedSourceWatchIdFilter) : undefined,
       keyword: debouncedKeyword.trim() || undefined,
-      limit: 100,
+      page,
+      size: pageSize,
     }),
-    [debouncedKeyword, debouncedSourceWatchIdFilter, failureReasonFilter, statusFilter]
+    [debouncedKeyword, debouncedSourceWatchIdFilter, failureReasonFilter, page, statusFilter]
   );
+
+  useEffect(() => {
+    setPage(0);
+  }, [debouncedKeyword, debouncedSourceWatchIdFilter, failureReasonFilter, statusFilter]);
 
   useEffect(() => {
     let active = true;
@@ -78,7 +87,8 @@ export function AdminCollectionRunsPanel() {
       try {
         const data = await getCollectionRuns(params);
         if (active) {
-          setRuns(data);
+          setPageData(data);
+          setRuns(data.items);
         }
       } catch {
         if (active) {
@@ -184,7 +194,53 @@ export function AdminCollectionRunsPanel() {
           </dl>
         </article>
       ))}
+      <PaginationBar
+        disabled={loading}
+        pageData={pageData}
+        onNext={() => setPage((current) => current + 1)}
+        onPrevious={() => setPage((current) => Math.max(0, current - 1))}
+      />
     </section>
+  );
+}
+
+function PaginationBar({
+  disabled,
+  onNext,
+  onPrevious,
+  pageData,
+}: {
+  disabled: boolean;
+  onNext: () => void;
+  onPrevious: () => void;
+  pageData: PageResponse<unknown> | null;
+}) {
+  const currentPage = (pageData?.page ?? 0) + 1;
+  const totalPages = Math.max(pageData?.totalPages ?? 0, 1);
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-white p-4 text-sm">
+      <span className="font-medium text-neutral-700">
+        총 {pageData?.totalElements ?? 0}개 · {currentPage} / {totalPages} 페이지
+      </span>
+      <div className="flex gap-2">
+        <button
+          className="h-9 rounded-lg border border-border px-3 text-sm font-semibold disabled:opacity-50"
+          type="button"
+          onClick={onPrevious}
+          disabled={disabled || !pageData?.hasPrevious}
+        >
+          이전
+        </button>
+        <button
+          className="h-9 rounded-lg border border-border px-3 text-sm font-semibold disabled:opacity-50"
+          type="button"
+          onClick={onNext}
+          disabled={disabled || !pageData?.hasNext}
+        >
+          다음
+        </button>
+      </div>
+    </div>
   );
 }
 

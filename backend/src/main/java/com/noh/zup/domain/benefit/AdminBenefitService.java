@@ -2,6 +2,7 @@ package com.noh.zup.domain.benefit;
 
 import com.noh.zup.common.exception.BusinessException;
 import com.noh.zup.common.exception.ErrorCode;
+import com.noh.zup.common.response.PageResponse;
 import com.noh.zup.domain.brand.Brand;
 import com.noh.zup.domain.brand.BrandRepository;
 import com.noh.zup.domain.category.CategoryRepository;
@@ -20,12 +21,16 @@ import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Service
 public class AdminBenefitService {
+    private static final int DEFAULT_PAGE_SIZE = 20;
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final BenefitRepository benefitRepository;
     private final BenefitTagRepository benefitTagRepository;
@@ -63,7 +68,7 @@ public class AdminBenefitService {
     }
 
     @Transactional(readOnly = true)
-    public List<BenefitSummaryResponse> getBenefits(
+    public PageResponse<BenefitSummaryResponse> getBenefits(
             String brandSlug,
             String categorySlug,
             VerificationStatus verificationStatus,
@@ -71,31 +76,24 @@ public class AdminBenefitService {
             BirthdayTimingType birthdayTimingType,
             Boolean isActive,
             String keyword,
-            Integer limit
+            Integer page,
+            Integer size
     ) {
         String normalizedBrandSlug = normalize(brandSlug);
         String normalizedCategorySlug = normalize(categorySlug);
         String normalizedKeyword = normalize(keyword);
         String lowerKeyword = normalizedKeyword == null ? null : normalizedKeyword.toLowerCase(Locale.ROOT);
-
-        return benefitRepository.findAllByOrderByUpdatedAtDesc().stream()
-                .filter(benefit -> normalizedBrandSlug == null
-                        || benefit.getBrand().getSlug().equals(normalizedBrandSlug))
-                .filter(benefit -> normalizedCategorySlug == null
-                        || benefit.getBrand().getCategory().getSlug().equals(normalizedCategorySlug))
-                .filter(benefit -> verificationStatus == null
-                        || benefit.getVerificationStatus() == verificationStatus)
-                .filter(benefit -> benefitType == null || benefit.getBenefitType() == benefitType)
-                .filter(benefit -> birthdayTimingType == null
-                        || benefit.getBirthdayTimingType() == birthdayTimingType)
-                .filter(benefit -> isActive == null || benefit.getIsActive().equals(isActive))
-                .filter(benefit -> lowerKeyword == null
-                        || benefit.getTitle().toLowerCase(Locale.ROOT).contains(lowerKeyword)
-                        || benefit.getSummary().toLowerCase(Locale.ROOT).contains(lowerKeyword)
-                        || benefit.getBrand().getName().toLowerCase(Locale.ROOT).contains(lowerKeyword))
-                .limit(normalizeLimit(limit))
-                .map(this::toSummaryResponse)
-                .toList();
+        Page<Benefit> benefits = benefitRepository.searchAdminBenefits(
+                normalizedBrandSlug,
+                normalizedCategorySlug,
+                verificationStatus,
+                benefitType,
+                birthdayTimingType,
+                isActive,
+                lowerKeyword,
+                PageRequest.of(normalizePage(page), normalizeSize(size))
+        );
+        return PageResponse.from(benefits, benefits.stream().map(this::toSummaryResponse).toList());
     }
 
     @Transactional(readOnly = true)
@@ -475,10 +473,17 @@ public class AdminBenefitService {
         return value.trim();
     }
 
-    private int normalizeLimit(Integer limit) {
-        if (limit == null || limit < 1) {
-            return 200;
+    private int normalizePage(Integer page) {
+        if (page == null || page < 0) {
+            return 0;
         }
-        return Math.min(limit, 500);
+        return page;
+    }
+
+    private int normalizeSize(Integer size) {
+        if (size == null || size < 1) {
+            return DEFAULT_PAGE_SIZE;
+        }
+        return Math.min(size, MAX_PAGE_SIZE);
     }
 }

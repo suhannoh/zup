@@ -43,5 +43,6 @@ export type CollectionRunSearchParams = {
   failureReason?: string;
   sourceWatchId?: number;
   keyword?: string;
-  limit?: number;
+  page?: number;
+  size?: number;
 };

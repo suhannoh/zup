@@ -33,6 +33,7 @@ import type {
   OccasionType,
   VerificationStatus,
 } from "@/types/adminBenefit";
+import type { PageResponse } from "@/types/api";
 import type { AdminBrand } from "@/types/adminBrand";
 import type { Category } from "@/types/category";
 
@@ -161,6 +162,7 @@ function buildStatusForm(benefit: Pick<AdminBenefitSummary, "verificationStatus"
 
 export function AdminBenefitsPanel() {
   const [benefits, setBenefits] = useState<AdminBenefitSummary[]>([]);
+  const [pageData, setPageData] = useState<PageResponse<AdminBenefitSummary> | null>(null);
   const [brands, setBrands] = useState<AdminBrand[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [keyword, setKeyword] = useState("");
@@ -181,6 +183,8 @@ export function AdminBenefitsPanel() {
   const [activeSavingId, setActiveSavingId] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const pageSize = 20;
 
   const params = useMemo(
     () => ({
@@ -205,17 +209,24 @@ export function AdminBenefitsPanel() {
             : activeFilter === "ALL"
               ? undefined
               : activeFilter === "ACTIVE",
+      page,
+      size: pageSize,
     }),
-    [activeFilter, benefitType, birthdayTimingType, brandSlug, categorySlug, debouncedKeyword, verificationStatus, visibilityFilter]
+    [activeFilter, benefitType, birthdayTimingType, brandSlug, categorySlug, debouncedKeyword, page, verificationStatus, visibilityFilter]
   );
+
+  useEffect(() => {
+    setPage(0);
+  }, [activeFilter, benefitType, birthdayTimingType, brandSlug, categorySlug, debouncedKeyword, verificationStatus, visibilityFilter]);
 
   async function loadBenefits() {
     setLoading(true);
     setError(null);
     try {
       const data = await getAdminBenefits(params);
-      setBenefits(data);
-      setStatusForms(Object.fromEntries(data.map((benefit) => [benefit.id, buildStatusForm(benefit)])));
+      setPageData(data);
+      setBenefits(data.items);
+      setStatusForms(Object.fromEntries(data.items.map((benefit) => [benefit.id, buildStatusForm(benefit)])));
     } catch {
       setError("혜택 목록을 불러오지 못했습니다.");
     } finally {
@@ -248,8 +259,9 @@ export function AdminBenefitsPanel() {
         if (!active) {
           return;
         }
-        setBenefits(data);
-        setStatusForms(Object.fromEntries(data.map((benefit) => [benefit.id, buildStatusForm(benefit)])));
+        setPageData(data);
+        setBenefits(data.items);
+        setStatusForms(Object.fromEntries(data.items.map((benefit) => [benefit.id, buildStatusForm(benefit)])));
       } catch {
         if (active) {
           setError("혜택 목록을 불러오지 못했습니다.");
@@ -474,9 +486,55 @@ export function AdminBenefitsPanel() {
           <p className="rounded-lg border border-border bg-white p-4 text-xs leading-5 text-neutral-600">
             PUBLISHED 상태이면서 활성화된 혜택만 사용자 화면에 노출됩니다.
           </p>
+          <PaginationBar
+            disabled={loading}
+            pageData={pageData}
+            onNext={() => setPage((current) => current + 1)}
+            onPrevious={() => setPage((current) => Math.max(0, current - 1))}
+          />
         </div>
       </div>
     </section>
+  );
+}
+
+function PaginationBar({
+  disabled,
+  onNext,
+  onPrevious,
+  pageData,
+}: {
+  disabled: boolean;
+  onNext: () => void;
+  onPrevious: () => void;
+  pageData: PageResponse<unknown> | null;
+}) {
+  const currentPage = (pageData?.page ?? 0) + 1;
+  const totalPages = Math.max(pageData?.totalPages ?? 0, 1);
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-white p-4 text-sm">
+      <span className="font-medium text-neutral-700">
+        총 {pageData?.totalElements ?? 0}개 · {currentPage} / {totalPages} 페이지
+      </span>
+      <div className="flex gap-2">
+        <button
+          className="h-9 rounded-lg border border-border px-3 text-sm font-semibold disabled:opacity-50"
+          type="button"
+          onClick={onPrevious}
+          disabled={disabled || !pageData?.hasPrevious}
+        >
+          이전
+        </button>
+        <button
+          className="h-9 rounded-lg border border-border px-3 text-sm font-semibold disabled:opacity-50"
+          type="button"
+          onClick={onNext}
+          disabled={disabled || !pageData?.hasNext}
+        >
+          다음
+        </button>
+      </div>
+    </div>
   );
 }
 

@@ -66,7 +66,8 @@ export type BenefitCandidateSearchParams = {
   collectionRunId?: number;
   status?: BenefitCandidateStatus;
   keyword?: string;
-  limit?: number;
+  page?: number;
+  size?: number;
 };
 
 export type BenefitCandidateApproveRequest = {

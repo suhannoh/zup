@@ -110,10 +110,11 @@ export function AdminDashboardPanel() {
           verificationStatus: "PUBLISHED",
           isActive: true,
           keyword: debouncedPublishedKeyword.trim() || undefined,
-          limit: debouncedPublishedKeyword.trim() ? 20 : 5,
+          page: 0,
+          size: debouncedPublishedKeyword.trim() ? 20 : 5,
         });
         if (active) {
-          setPublishedBenefits(data);
+          setPublishedBenefits(data.items);
         }
       } catch {
         if (active) {

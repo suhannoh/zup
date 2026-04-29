@@ -1,6 +1,7 @@
 package com.noh.zup.domain.collection;
 
 import com.noh.zup.common.response.ApiResponse;
+import com.noh.zup.common.response.PageResponse;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,15 +20,16 @@ public class AdminCollectionRunController {
     }
 
     @GetMapping("/collection-runs")
-    public ApiResponse<List<CollectionRunResponse>> getRecentRuns(
+    public ApiResponse<PageResponse<CollectionRunResponse>> getRecentRuns(
             @RequestParam(required = false) CollectionRunStatus status,
             @RequestParam(required = false) String failureReason,
             @RequestParam(required = false) Long sourceWatchId,
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Integer limit
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
     ) {
         return ApiResponse.success(
-                collectionRunService.getRecentRuns(status, failureReason, sourceWatchId, keyword, limit),
+                collectionRunService.getRecentRuns(status, failureReason, sourceWatchId, keyword, page, size),
                 "collection runs fetched"
         );
     }

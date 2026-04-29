@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { getBenefitCandidates } from "@/lib/api/adminApi";
 import { CANDIDATE_STATUS_CLASS, CANDIDATE_STATUS_LABELS } from "@/lib/adminLabels";
+import type { PageResponse } from "@/types/api";
 import type { BenefitCandidateStatus, BenefitCandidateSummary } from "@/types/benefitCandidate";
 
 const statusOptions: Array<BenefitCandidateStatus | "ALL"> = ["ALL", "NEEDS_REVIEW", "APPROVED", "REJECTED"];
@@ -27,6 +28,7 @@ export function AdminBenefitCandidatesPanel() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [candidates, setCandidates] = useState<BenefitCandidateSummary[]>([]);
+  const [pageData, setPageData] = useState<PageResponse<BenefitCandidateSummary> | null>(null);
   const [statusFilter, setStatusFilter] = useState<BenefitCandidateStatus | "ALL">(
     (searchParams.get("status") as BenefitCandidateStatus | "ALL") ?? "NEEDS_REVIEW"
   );
@@ -38,12 +40,15 @@ export function AdminBenefitCandidatesPanel() {
   const debouncedCollectionRunIdFilter = useDebouncedValue(collectionRunIdFilter, 300);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(Number(searchParams.get("page") ?? 0) || 0);
+  const pageSize = 20;
 
   useEffect(() => {
     setStatusFilter((searchParams.get("status") as BenefitCandidateStatus | "ALL") ?? "NEEDS_REVIEW");
     setKeyword(searchParams.get("keyword") ?? "");
     setSourceWatchIdFilter(searchParams.get("sourceWatchId") ?? "");
     setCollectionRunIdFilter(searchParams.get("collectionRunId") ?? "");
+    setPage(Number(searchParams.get("page") ?? 0) || 0);
   }, [searchParams]);
 
   const params = useMemo(
@@ -52,10 +57,15 @@ export function AdminBenefitCandidatesPanel() {
       collectionRunId: debouncedCollectionRunIdFilter.trim() ? Number(debouncedCollectionRunIdFilter) : undefined,
       status: statusFilter === "ALL" ? undefined : statusFilter,
       keyword: debouncedKeyword.trim() || undefined,
-      limit: 100,
+      page,
+      size: pageSize,
     }),
-    [debouncedCollectionRunIdFilter, debouncedKeyword, debouncedSourceWatchIdFilter, statusFilter]
+    [debouncedCollectionRunIdFilter, debouncedKeyword, debouncedSourceWatchIdFilter, page, statusFilter]
   );
+
+  useEffect(() => {
+    setPage(0);
+  }, [debouncedCollectionRunIdFilter, debouncedKeyword, debouncedSourceWatchIdFilter, statusFilter]);
 
   useEffect(() => {
     let active = true;
@@ -66,7 +76,8 @@ export function AdminBenefitCandidatesPanel() {
       try {
         const data = await getBenefitCandidates(params);
         if (active) {
-          setCandidates(data);
+          setPageData(data);
+          setCandidates(data.items);
         }
       } catch {
         if (active) {
@@ -182,7 +193,53 @@ export function AdminBenefitCandidatesPanel() {
           </article>
         ))}
       </div>
+      <PaginationBar
+        disabled={loading}
+        pageData={pageData}
+        onNext={() => setPage((current) => current + 1)}
+        onPrevious={() => setPage((current) => Math.max(0, current - 1))}
+      />
     </section>
+  );
+}
+
+function PaginationBar({
+  disabled,
+  onNext,
+  onPrevious,
+  pageData,
+}: {
+  disabled: boolean;
+  onNext: () => void;
+  onPrevious: () => void;
+  pageData: PageResponse<unknown> | null;
+}) {
+  const currentPage = (pageData?.page ?? 0) + 1;
+  const totalPages = Math.max(pageData?.totalPages ?? 0, 1);
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-neutral-200 bg-white p-4 text-sm shadow-sm">
+      <span className="font-medium text-neutral-700">
+        총 {pageData?.totalElements ?? 0}개 · {currentPage} / {totalPages} 페이지
+      </span>
+      <div className="flex gap-2">
+        <button
+          className="h-9 rounded-lg border border-neutral-200 px-3 text-sm font-semibold disabled:opacity-50"
+          type="button"
+          onClick={onPrevious}
+          disabled={disabled || !pageData?.hasPrevious}
+        >
+          이전
+        </button>
+        <button
+          className="h-9 rounded-lg border border-neutral-200 px-3 text-sm font-semibold disabled:opacity-50"
+          type="button"
+          onClick={onNext}
+          disabled={disabled || !pageData?.hasNext}
+        >
+          다음
+        </button>
+      </div>
+    </div>
   );
 }
 

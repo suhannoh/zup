@@ -1,8 +1,8 @@
 package com.noh.zup.domain.collection;
 
 import com.noh.zup.common.response.ApiResponse;
+import com.noh.zup.common.response.PageResponse;
 import jakarta.validation.Valid;
-import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,15 +23,16 @@ public class AdminBenefitCandidateController {
     }
 
     @GetMapping
-    public ApiResponse<List<BenefitCandidateSummaryResponse>> getCandidates(
+    public ApiResponse<PageResponse<BenefitCandidateSummaryResponse>> getCandidates(
             @RequestParam(required = false) Long sourceWatchId,
             @RequestParam(required = false) Long collectionRunId,
             @RequestParam(required = false) BenefitCandidateStatus status,
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Integer limit
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
     ) {
         return ApiResponse.success(
-                benefitCandidateService.getCandidates(sourceWatchId, collectionRunId, status, keyword, limit),
+                benefitCandidateService.getCandidates(sourceWatchId, collectionRunId, status, keyword, page, size),
                 "benefit candidates fetched"
         );
     }

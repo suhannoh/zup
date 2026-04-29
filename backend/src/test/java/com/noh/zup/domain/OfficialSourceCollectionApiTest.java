@@ -155,16 +155,16 @@ class OfficialSourceCollectionApiTest {
 
         mockMvc.perform(get("/api/v1/admin/benefit-candidates?sourceWatchId=" + sourceWatchId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].id").value(candidateId))
-                .andExpect(jsonPath("$.data[0].applicableTiming").value("BIRTHDAY"))
-                .andExpect(jsonPath("$.data[0].warningCount").exists())
-                .andExpect(jsonPath("$.data[0].excludedTextCount").exists())
-                .andExpect(jsonPath("$.data[0].evidenceText").doesNotExist())
-                .andExpect(jsonPath("$.data[0].benefitDetailText").doesNotExist())
-                .andExpect(jsonPath("$.data[0].usageGuideText").doesNotExist())
-                .andExpect(jsonPath("$.data[0].excludedTexts").doesNotExist())
-                .andExpect(jsonPath("$.data[0].extractionWarnings").doesNotExist());
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].id").value(candidateId))
+                .andExpect(jsonPath("$.data.items[0].applicableTiming").value("BIRTHDAY"))
+                .andExpect(jsonPath("$.data.items[0].warningCount").exists())
+                .andExpect(jsonPath("$.data.items[0].excludedTextCount").exists())
+                .andExpect(jsonPath("$.data.items[0].evidenceText").doesNotExist())
+                .andExpect(jsonPath("$.data.items[0].benefitDetailText").doesNotExist())
+                .andExpect(jsonPath("$.data.items[0].usageGuideText").doesNotExist())
+                .andExpect(jsonPath("$.data.items[0].excludedTexts").doesNotExist())
+                .andExpect(jsonPath("$.data.items[0].extractionWarnings").doesNotExist());
 
         mockMvc.perform(get("/api/v1/admin/source-watches/{id}/collection-runs", sourceWatchId))
                 .andExpect(status().isOk())
@@ -380,7 +380,7 @@ class OfficialSourceCollectionApiTest {
 
         mockMvc.perform(get("/api/v1/admin/benefit-candidates"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[?(@.sourceWatchId == " + sourceWatchId + ")]", hasSize(1)));
+                .andExpect(jsonPath("$.data.items[?(@.sourceWatchId == " + sourceWatchId + ")]", hasSize(1)));
 
         mockMvc.perform(get("/api/v1/admin/source-watches/{id}/collection-runs", sourceWatchId))
                 .andExpect(status().isOk())
@@ -507,13 +507,13 @@ class OfficialSourceCollectionApiTest {
 
         mockMvc.perform(get("/api/v1/admin/collection-runs?sourceWatchId=" + sourceWatchId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].triggerType").value("MANUAL_REGENERATE_CANDIDATES"));
+                .andExpect(jsonPath("$.data.items[0].triggerType").value("MANUAL_REGENERATE_CANDIDATES"));
 
         mockMvc.perform(get("/api/v1/admin/benefit-candidates?collectionRunId=" + collectionRunId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].id").value(candidateId))
-                .andExpect(jsonPath("$.data[0].collectionRunId").value(collectionRunId));
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].id").value(candidateId))
+                .andExpect(jsonPath("$.data.items[0].collectionRunId").value(collectionRunId));
     }
 
     @Test
@@ -568,17 +568,17 @@ class OfficialSourceCollectionApiTest {
 
         mockMvc.perform(get("/api/v1/admin/benefit-candidates"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[?(@.sourceWatchId == " + sourceWatchId + ")]", hasSize(1)));
+                .andExpect(jsonPath("$.data.items[?(@.sourceWatchId == " + sourceWatchId + ")]", hasSize(1)));
 
         mockMvc.perform(get("/api/v1/admin/collection-runs?sourceWatchId=" + sourceWatchId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(2)))
-                .andExpect(jsonPath("$.data[0].triggerType").value("MANUAL_REGENERATE_CANDIDATES"))
-                .andExpect(jsonPath("$.data[0].candidateCount").value(0));
+                .andExpect(jsonPath("$.data.items", hasSize(2)))
+                .andExpect(jsonPath("$.data.items[0].triggerType").value("MANUAL_REGENERATE_CANDIDATES"))
+                .andExpect(jsonPath("$.data.items[0].candidateCount").value(0));
 
         mockMvc.perform(get("/api/v1/admin/benefit-candidates?collectionRunId=" + secondRunId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", empty()));
+                .andExpect(jsonPath("$.data.items", empty()));
     }
 
     @Test
@@ -721,7 +721,7 @@ class OfficialSourceCollectionApiTest {
         mockMvc.perform(get("/api/v1/admin/collection-runs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("collection runs fetched"))
-                .andExpect(jsonPath("$.data[?(@.sourceWatchId == " + sourceWatchId + ")]", hasSize(1)));
+                .andExpect(jsonPath("$.data.items[?(@.sourceWatchId == " + sourceWatchId + ")]", hasSize(1)));
     }
 
     @Test
@@ -810,35 +810,115 @@ class OfficialSourceCollectionApiTest {
 
         mockMvc.perform(get("/api/v1/admin/collection-runs?status=FAILED&keyword=beta"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].sourceWatchId").value(failedSourceWatchId))
-                .andExpect(jsonPath("$.data[0].failureReason").value("FETCH_FAILED"));
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].sourceWatchId").value(failedSourceWatchId))
+                .andExpect(jsonPath("$.data.items[0].failureReason").value("FETCH_FAILED"));
 
         mockMvc.perform(get("/api/v1/admin/collection-runs?failureReason=ROBOTS_TXT_DISALLOWED&keyword=gamma"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].sourceWatchId").value(skippedSourceWatchId))
-                .andExpect(jsonPath("$.data[0].detailReason").value(org.hamcrest.Matchers.containsString("Disallow: /benefit")));
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].sourceWatchId").value(skippedSourceWatchId))
+                .andExpect(jsonPath("$.data.items[0].detailReason").value(org.hamcrest.Matchers.containsString("Disallow: /benefit")));
 
         mockMvc.perform(get("/api/v1/admin/collection-runs?sourceWatchId=" + successSourceWatchId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].sourceWatchId").value(successSourceWatchId))
-                .andExpect(jsonPath("$.data[0].snapshotId").exists());
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].sourceWatchId").value(successSourceWatchId))
+                .andExpect(jsonPath("$.data.items[0].snapshotId").exists());
 
-        mockMvc.perform(get("/api/v1/admin/collection-runs?keyword=gamma"))
+        mockMvc.perform(get("/api/v1/admin/collection-runs").param("keyword", "Robots gamma page"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].sourceWatchTitle").value("Robots gamma page"));
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].sourceWatchTitle").value("Robots gamma page"));
 
-        mockMvc.perform(get("/api/v1/admin/collection-runs?keyword=alpha&sourceWatchId=" + successSourceWatchId))
+        mockMvc.perform(get("/api/v1/admin/collection-runs")
+                        .param("keyword", "Success alpha page")
+                        .param("sourceWatchId", String.valueOf(successSourceWatchId)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].sourceWatchId").value(successSourceWatchId));
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].sourceWatchId").value(successSourceWatchId));
 
-        mockMvc.perform(get("/api/v1/admin/collection-runs?limit=2"))
+        mockMvc.perform(get("/api/v1/admin/collection-runs?size=2"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(2)));
+                .andExpect(jsonPath("$.data.items", hasSize(2)))
+                .andExpect(jsonPath("$.data.size").value(2))
+                .andExpect(jsonPath("$.data.totalElements").value(greaterThanOrEqualTo(3)))
+                .andExpect(jsonPath("$.data.hasNext").value(true));
+    }
+
+    @Test
+    void benefitCandidatesAndCollectionRunsSupportPaginationBoundsAndMetadata() throws Exception {
+        when(officialSourceFetcher.fetch(anyString())).thenReturn(FetchResult.success(200, birthdayCouponHtml()));
+        Long brandId = brandRepository.findBySlug("starbucks").orElseThrow().getId();
+
+        Long alphaSourceWatchId = createSourceWatch(
+                brandId,
+                "Pagination candidate run alpha",
+                "https://pagination-alpha.example.com/benefit"
+        );
+        Long betaSourceWatchId = createSourceWatch(
+                brandId,
+                "Pagination candidate run beta",
+                "https://pagination-beta.example.com/benefit"
+        );
+        Long gammaSourceWatchId = createSourceWatch(
+                brandId,
+                "Pagination candidate run gamma",
+                "https://pagination-gamma.example.com/benefit"
+        );
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", alphaSourceWatchId))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", betaSourceWatchId))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", gammaSourceWatchId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/admin/benefit-candidates?keyword=Pagination candidate run&page=0&size=2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", hasSize(2)))
+                .andExpect(jsonPath("$.data.page").value(0))
+                .andExpect(jsonPath("$.data.size").value(2))
+                .andExpect(jsonPath("$.data.totalElements").value(3))
+                .andExpect(jsonPath("$.data.totalPages").value(2))
+                .andExpect(jsonPath("$.data.hasNext").value(true))
+                .andExpect(jsonPath("$.data.hasPrevious").value(false));
+
+        mockMvc.perform(get("/api/v1/admin/benefit-candidates?keyword=Pagination candidate run&page=1&size=2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.page").value(1))
+                .andExpect(jsonPath("$.data.hasNext").value(false))
+                .andExpect(jsonPath("$.data.hasPrevious").value(true));
+
+        mockMvc.perform(get("/api/v1/admin/benefit-candidates?keyword=Pagination candidate run&page=-1&size=101"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.page").value(0))
+                .andExpect(jsonPath("$.data.size").value(100))
+                .andExpect(jsonPath("$.data.totalElements").value(3));
+
+        mockMvc.perform(get("/api/v1/admin/collection-runs?keyword=Pagination candidate run&page=0&size=2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", hasSize(2)))
+                .andExpect(jsonPath("$.data.page").value(0))
+                .andExpect(jsonPath("$.data.size").value(2))
+                .andExpect(jsonPath("$.data.totalElements").value(3))
+                .andExpect(jsonPath("$.data.totalPages").value(2))
+                .andExpect(jsonPath("$.data.hasNext").value(true))
+                .andExpect(jsonPath("$.data.hasPrevious").value(false));
+
+        mockMvc.perform(get("/api/v1/admin/collection-runs?keyword=Pagination candidate run&page=1&size=2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.page").value(1))
+                .andExpect(jsonPath("$.data.hasNext").value(false))
+                .andExpect(jsonPath("$.data.hasPrevious").value(true));
+
+        mockMvc.perform(get("/api/v1/admin/collection-runs?keyword=Pagination candidate run&page=-1&size=101"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.page").value(0))
+                .andExpect(jsonPath("$.data.size").value(100))
+                .andExpect(jsonPath("$.data.totalElements").value(3));
     }
 
     @Test
@@ -870,32 +950,33 @@ class OfficialSourceCollectionApiTest {
                 .andReturn();
         long alphaRunId = objectMapper.readTree(alphaRunResult.getResponse().getContentAsByteArray())
                 .get("data")
+                .get("items")
                 .get(0)
                 .get("id")
                 .asLong();
 
         mockMvc.perform(get("/api/v1/admin/benefit-candidates?sourceWatchId=" + alphaSourceWatchId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].id").value(alphaCandidateId))
-                .andExpect(jsonPath("$.data[0].sourceWatchTitle").value("Alpha candidate page"))
-                .andExpect(jsonPath("$.data[0].collectionRunId").value(alphaRunId));
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].id").value(alphaCandidateId))
+                .andExpect(jsonPath("$.data.items[0].sourceWatchTitle").value("Alpha candidate page"))
+                .andExpect(jsonPath("$.data.items[0].collectionRunId").value(alphaRunId));
 
         mockMvc.perform(get("/api/v1/admin/benefit-candidates?collectionRunId=" + alphaRunId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].id").value(alphaCandidateId));
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].id").value(alphaCandidateId));
 
         mockMvc.perform(get("/api/v1/admin/benefit-candidates?sourceWatchId=" + betaSourceWatchId + "&status=REJECTED"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].id").value(betaCandidateId))
-                .andExpect(jsonPath("$.data[0].status").value("REJECTED"));
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].id").value(betaCandidateId))
+                .andExpect(jsonPath("$.data.items[0].status").value("REJECTED"));
 
         mockMvc.perform(get("/api/v1/admin/benefit-candidates?sourceWatchId=" + alphaSourceWatchId + "&keyword=Alpha"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].id").value(alphaCandidateId));
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].id").value(alphaCandidateId));
     }
 
     @Test
@@ -914,6 +995,7 @@ class OfficialSourceCollectionApiTest {
                 .andReturn();
         long collectionRunId = objectMapper.readTree(runResult.getResponse().getContentAsByteArray())
                 .get("data")
+                .get("items")
                 .get(0)
                 .get("id")
                 .asLong();
@@ -923,9 +1005,9 @@ class OfficialSourceCollectionApiTest {
 
         mockMvc.perform(get("/api/v1/admin/benefit-candidates?collectionRunId=" + collectionRunId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].id").value(candidateId))
-                .andExpect(jsonPath("$.data[0].collectionRunId").value(collectionRunId));
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].id").value(candidateId))
+                .andExpect(jsonPath("$.data.items[0].collectionRunId").value(collectionRunId));
     }
 
     @Test
@@ -963,9 +1045,9 @@ class OfficialSourceCollectionApiTest {
 
         mockMvc.perform(get("/api/v1/admin/benefit-candidates?collectionRunId=" + collectionRun.getId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].id").value(legacyCandidate.getId()))
-                .andExpect(jsonPath("$.data[0].collectionRunId").value(collectionRun.getId()));
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].id").value(legacyCandidate.getId()))
+                .andExpect(jsonPath("$.data.items[0].collectionRunId").value(collectionRun.getId()));
     }
 
     @Test
@@ -1171,7 +1253,9 @@ class OfficialSourceCollectionApiTest {
         MvcResult result = mockMvc.perform(get("/api/v1/admin/benefit-candidates"))
                 .andExpect(status().isOk())
                 .andReturn();
-        JsonNode candidates = objectMapper.readTree(result.getResponse().getContentAsString()).get("data");
+        JsonNode candidates = objectMapper.readTree(result.getResponse().getContentAsString())
+                .get("data")
+                .get("items");
         for (JsonNode candidate : candidates) {
             if (candidate.get("sourceWatchId").asLong() == sourceWatchId) {
                 return candidate.get("id").asLong();

@@ -2,6 +2,7 @@ package com.noh.zup.domain.benefit;
 
 import com.noh.zup.common.request.ActiveUpdateRequest;
 import com.noh.zup.common.response.ApiResponse;
+import com.noh.zup.common.response.PageResponse;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -25,7 +26,7 @@ public class AdminBenefitController {
     }
 
     @GetMapping("/benefits")
-    public ApiResponse<List<BenefitSummaryResponse>> getBenefits(
+    public ApiResponse<PageResponse<BenefitSummaryResponse>> getBenefits(
             @RequestParam(required = false) String brandSlug,
             @RequestParam(required = false) String categorySlug,
             @RequestParam(required = false) VerificationStatus verificationStatus,
@@ -33,7 +34,8 @@ public class AdminBenefitController {
             @RequestParam(required = false) BirthdayTimingType birthdayTimingType,
             @RequestParam(required = false) Boolean isActive,
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Integer limit
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
     ) {
         return ApiResponse.success(
                 adminBenefitService.getBenefits(
@@ -44,7 +46,8 @@ public class AdminBenefitController {
                         birthdayTimingType,
                         isActive,
                         keyword,
-                        limit
+                        page,
+                        size
                 ),
                 "benefits fetched"
         );
