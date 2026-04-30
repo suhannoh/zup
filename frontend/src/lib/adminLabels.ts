@@ -47,9 +47,12 @@ export const COLLECTION_FAILURE_REASON_LABELS: Record<string, string> = {
   ROBOTS_TXT_FETCH_FAILED: "robots.txt 확인 실패",
   ROBOTS_TXT_PARSE_FAILED: "robots.txt 파싱 실패",
   TERMS_RESTRICTION_FOUND: "약관상 자동 수집/재배포 제한",
+  TERMS_BLOCKED: "약관상 자동 수집 차단",
   TERMS_NOT_CHECKED: "약관 미확인",
   COLLECTION_PERMISSION_NOT_APPROVED: "수집 권한 미승인",
   LOGIN_REQUIRED_SOURCE: "로그인 필요 출처",
+  LOGIN_REQUIRED: "로그인 필요",
+  POLICY_NEEDS_REVIEW: "정책 수동 검토 필요",
   UNKNOWN_POLICY_NEEDS_REVIEW: "정책 확인 필요",
   UNKNOWN: "알 수 없는 오류",
 };

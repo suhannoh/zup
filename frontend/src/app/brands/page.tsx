@@ -74,12 +74,15 @@ export default async function BrandsPage({ searchParams }: BrandsPageProps) {
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
             href="/brands"
-            className="inline-flex h-9 items-center rounded-full border border-border bg-white px-3 text-sm font-medium"
+            className={[
+              "inline-flex h-10 items-center rounded-full border px-4 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-blue-200",
+              categorySlug ? "border-neutral-200 bg-white text-neutral-600 hover:border-blue-200 hover:text-blue-700" : "border-blue-600 bg-blue-600 text-white hover:bg-blue-700",
+            ].join(" ")}
           >
             전체
           </Link>
           {categories.map((category) => (
-            <CategoryPill key={category.slug} category={category} />
+            <CategoryPill key={category.slug} category={category} selected={categorySlug === category.slug} />
           ))}
         </div>
       </form>

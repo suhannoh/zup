@@ -79,6 +79,39 @@ Frontend:
 http://localhost:3000
 ```
 
+Docker Compose로 프론트엔드를 컨테이너에서 실행할 때는 브라우저가 호출할 공개 API 주소(`NEXT_PUBLIC_API_BASE_URL`)와 Next.js 서버 컴포넌트가 컨테이너 네트워크 안에서 호출할 내부 API 주소(`INTERNAL_API_BASE_URL`)를 분리한다. 기본값은 각각 `http://localhost:8080`, `http://backend:8080`이다.
+
+프론트엔드 검증:
+
+```powershell
+cd frontend
+npm run lint
+npm run build
+```
+
+`npm run lint`는 Next.js의 deprecated `next lint`가 아니라 ESLint CLI(`eslint .`)로 실행된다.
+
+## 검증 명령
+
+Backend:
+
+```bash
+cd backend
+./gradlew test
+./gradlew build
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm ci
+npm run lint
+npm run build
+```
+
+GitHub Actions는 `main`/`develop` 브랜치 push와 pull request에서 backend test/build, frontend lint/build를 실행한다.
+
 ## 주요 기능
 
 - 브랜드별 생일 혜택 목록과 상세 조회

@@ -12,6 +12,7 @@ import {
   regenerateSourceWatchCandidates,
   updateSourceWatch,
   updateSourceWatchActive,
+  updateSourceWatchTermsCheck,
 } from "@/lib/api/adminApi";
 import { COLLECTION_FAILURE_REASON_LABELS, COLLECTION_STATUS_CLASS, COLLECTION_STATUS_LABELS } from "@/lib/adminLabels";
 import { SOURCE_TYPE_LABELS, SOURCE_TYPE_OPTIONS } from "@/lib/sourceLabels";
@@ -26,6 +27,7 @@ import type {
   SourceWatch,
   SourceWatchCollectResponse,
   SourceWatchRegenerateCandidatesResponse,
+  SourceWatchTermsCheckRequest,
   TermsCheckStatus,
 } from "@/types/sourceWatch";
 
@@ -42,6 +44,13 @@ type FormState = {
   collectionPermissionStatus: CollectionPermissionStatus | "";
   policyCheckNote: string;
   manualVerificationNote: string;
+};
+
+type TermsFormState = {
+  termsCheckStatus: TermsCheckStatus;
+  termsUrl: string;
+  termsCheckedAt: string;
+  termsMemo: string;
 };
 
 const emptyForm: FormState = {
@@ -76,6 +85,15 @@ function toForm(sourceWatch: SourceWatch): FormState {
         : "",
     policyCheckNote: sourceWatch.policyCheckNote ?? "",
     manualVerificationNote: sourceWatch.manualVerificationNote ?? "",
+  };
+}
+
+function toTermsForm(sourceWatch: SourceWatch): TermsFormState {
+  return {
+    termsCheckStatus: sourceWatch.termsCheckStatus ?? "NOT_CHECKED",
+    termsUrl: sourceWatch.termsUrl ?? "",
+    termsCheckedAt: sourceWatch.termsCheckedAt ?? "",
+    termsMemo: sourceWatch.termsMemo ?? "",
   };
 }
 
@@ -117,9 +135,12 @@ const skippedFailureReasons = new Set([
   "ROBOTS_TXT_FETCH_FAILED",
   "ROBOTS_TXT_PARSE_FAILED",
   "TERMS_RESTRICTION_FOUND",
+  "TERMS_BLOCKED",
   "TERMS_NOT_CHECKED",
   "COLLECTION_PERMISSION_NOT_APPROVED",
   "LOGIN_REQUIRED_SOURCE",
+  "LOGIN_REQUIRED",
+  "POLICY_NEEDS_REVIEW",
   "UNKNOWN_POLICY_NEEDS_REVIEW",
 ]);
 
@@ -141,15 +162,79 @@ const permissionClasses: Record<CollectionPermissionStatus, string> = {
   UNKNOWN_NEEDS_REVIEW: "bg-amber-50 text-amber-700",
 };
 
-function getPolicyGuidance(status: CollectionPermissionStatus) {
-  if (status === "ALLOWED_TO_COLLECT") {
-    return "이 출처는 현재 정책 기준상 자동 후보 생성이 가능합니다. 생성된 후보는 관리자 검수 후에만 공개됩니다.";
+const termsCheckLabels: Record<TermsCheckStatus, string> = {
+  NOT_CHECKED: "미확인",
+  NO_RESTRICTION_FOUND: "수집 가능",
+  NEEDS_REVIEW: "검토 필요",
+  RESTRICTION_FOUND: "제한 있음",
+  BLOCKED: "수집 금지",
+};
+
+const termsCandidateTypeLabels: Record<string, string> = {
+  TERMS: "약관",
+  LEGAL: "법적고지",
+  PRIVACY: "개인정보처리방침",
+  COPYRIGHT: "저작권",
+  OTHER: "기타",
+};
+
+const termsCandidateClass: Record<string, string> = {
+  TERMS: "bg-blue-50 text-blue-700",
+  LEGAL: "bg-violet-50 text-violet-700",
+  PRIVACY: "bg-neutral-100 text-neutral-700",
+  COPYRIGHT: "bg-amber-50 text-amber-700",
+  OTHER: "bg-neutral-100 text-neutral-700",
+};
+
+function isUnverifiedPolicy(sourceWatch: SourceWatch) {
+  return (
+    sourceWatch.collectionPermissionStatus === "UNKNOWN_NEEDS_REVIEW" &&
+    (sourceWatch.termsCheckStatus === "NOT_CHECKED" || sourceWatch.termsCheckStatus === "NO_RESTRICTION_FOUND") &&
+    sourceWatch.robotsCheckStatus === "UNKNOWN"
+  );
+}
+
+function canCollect(sourceWatch: SourceWatch) {
+  if (!sourceWatch.isActive || sourceWatch.loginRequired) {
+    return false;
   }
-  if (status === "UNKNOWN_NEEDS_REVIEW") {
-    return "robots.txt, 이용약관, 로그인 필요 여부를 확인하기 전까지 자동 수집을 진행하지 않습니다. 이용약관 확인 후 TermsCheckStatus를 업데이트하세요.";
+  if (sourceWatch.collectionPermissionStatus === "ALLOWED_TO_COLLECT") {
+    return true;
   }
-  if (status === "BLOCKED_BY_ROBOTS") {
-    return "이 출처는 robots.txt 정책에 의해 자동 수집할 수 없습니다. 공식 페이지를 직접 확인한 뒤 혜택 정보를 수동으로 등록하거나 수정해 주세요. 자동 수집은 중단되지만, 공식 출처 URL과 최종 확인일은 수동 검수 근거로 유지할 수 있습니다.";
+  if (sourceWatch.collectionPermissionStatus === "BLOCKED_BY_ROBOTS" || sourceWatch.collectionPermissionStatus === "BLOCKED_BY_TERMS") {
+    return false;
+  }
+  if (sourceWatch.collectionPermissionStatus === "LOGIN_REQUIRED" || sourceWatch.collectionPermissionStatus === "MANUAL_REVIEW_ONLY") {
+    return false;
+  }
+  if (sourceWatch.robotsCheckStatus === "DISALLOWED") {
+    return false;
+  }
+  if (sourceWatch.termsCheckStatus === "NEEDS_REVIEW" || sourceWatch.termsCheckStatus === "RESTRICTION_FOUND" || sourceWatch.termsCheckStatus === "BLOCKED") {
+    return false;
+  }
+  return isUnverifiedPolicy(sourceWatch);
+}
+
+function getCollectButtonLabel(sourceWatch: SourceWatch) {
+  return isUnverifiedPolicy(sourceWatch) ? "정책 확인 후 수집 실행" : "수집 실행";
+}
+
+function getPolicyGuidance(sourceWatch: SourceWatch) {
+  if (isUnverifiedPolicy(sourceWatch)) {
+    return "아직 정책 점검을 수행하지 않았습니다. 수집 실행을 누르면 robots.txt와 접근 가능 여부를 먼저 확인한 뒤, 허용되는 경우에만 수집을 진행합니다.";
+  }
+  if (sourceWatch.collectionPermissionStatus === "ALLOWED_TO_COLLECT") {
+    return "자동 점검 결과 수집 가능한 출처입니다. 생성된 후보는 관리자 검수 후에만 공개됩니다.";
+  }
+  if (sourceWatch.collectionPermissionStatus === "UNKNOWN_NEEDS_REVIEW") {
+    return "자동 점검 결과 수동 검토가 필요한 출처입니다. 정책 메모와 최근 수집 이력을 확인한 뒤 수동 혜택 등록 또는 정책 상태 수정을 진행해 주세요.";
+  }
+  if (sourceWatch.collectionPermissionStatus === "BLOCKED_BY_ROBOTS") {
+    return "robots.txt 정책에 의해 자동 수집이 차단되었습니다. 공식 페이지를 직접 확인한 뒤 수동 혜택 등록 또는 기존 혜택 수정을 진행해 주세요.";
+  }
+  if (sourceWatch.collectionPermissionStatus === "LOGIN_REQUIRED") {
+    return "로그인 또는 인증이 필요한 페이지로 판단되어 자동 수집을 진행하지 않습니다. 공식 페이지를 직접 확인한 뒤 수동으로 혜택을 등록해 주세요.";
   }
   return "이 출처는 자동 수집 대상이 아닙니다. 공식 페이지를 직접 확인한 뒤 최소 사실 정보 중심으로 수동 등록하거나 수정해 주세요.";
 }
@@ -224,6 +309,8 @@ export function AdminSourceWatchesPanel() {
   const [historyLoadingId, setHistoryLoadingId] = useState<number | null>(null);
   const [historyRuns, setHistoryRuns] = useState<Record<number, SourceWatchCollectionRunHistory[]>>({});
   const [historyErrors, setHistoryErrors] = useState<Record<number, string>>({});
+  const [termsForms, setTermsForms] = useState<Record<number, TermsFormState>>({});
+  const [savingTermsId, setSavingTermsId] = useState<number | null>(null);
 
   async function loadAll() {
     setLoading(true);
@@ -231,6 +318,7 @@ export function AdminSourceWatchesPanel() {
     try {
       const [watchData, brandData] = await Promise.all([getSourceWatches(), getAdminBrands()]);
       setSourceWatches(watchData ?? []);
+      setTermsForms(Object.fromEntries((watchData ?? []).map((sourceWatch) => [sourceWatch.id, toTermsForm(sourceWatch)])));
       setBrands(brandData ?? []);
     } catch (loadError) {
       setError(getErrorMessage(loadError, "SourceWatch 목록을 불러오지 못했습니다."));
@@ -342,6 +430,45 @@ export function AdminSourceWatchesPanel() {
     } finally {
       setRegeneratingId(null);
     }
+  }
+
+  async function handleTermsCheckSave(sourceWatch: SourceWatch) {
+    const termsForm = termsForms[sourceWatch.id] ?? toTermsForm(sourceWatch);
+    const request: SourceWatchTermsCheckRequest = {
+      termsCheckStatus: termsForm.termsCheckStatus,
+      termsUrl: normalizeOptional(termsForm.termsUrl),
+      termsCheckedAt: normalizeOptional(termsForm.termsCheckedAt),
+      termsMemo: normalizeOptional(termsForm.termsMemo),
+    };
+
+    setSavingTermsId(sourceWatch.id);
+    setMessage(null);
+    setError(null);
+    try {
+      const updated = await updateSourceWatchTermsCheck(sourceWatch.id, request);
+      setSourceWatches((items) => items.map((item) => (item.id === updated.id ? updated : item)));
+      setTermsForms((current) => ({ ...current, [updated.id]: toTermsForm(updated) }));
+      setMessage("약관 확인 결과가 저장되었습니다.");
+    } catch (termsError) {
+      setError(getErrorMessage(termsError, "약관 확인 결과 저장에 실패했습니다."));
+    } finally {
+      setSavingTermsId(null);
+    }
+  }
+
+  function updateTermsForm(sourceWatchId: number, patch: Partial<TermsFormState>) {
+    setTermsForms((current) => ({
+      ...current,
+      [sourceWatchId]: {
+        ...(current[sourceWatchId] ?? {
+          termsCheckStatus: "NOT_CHECKED",
+          termsUrl: "",
+          termsCheckedAt: "",
+          termsMemo: "",
+        }),
+        ...patch,
+      },
+    }));
   }
 
   async function handleToggleHistory(sourceWatchId: number) {
@@ -464,12 +591,12 @@ export function AdminSourceWatchesPanel() {
             ))}
           </FieldSelect>
           <FieldSelect label="약관 확인 상태" value={form.termsCheckStatus} onChange={(termsCheckStatus) => setForm((current) => ({ ...current, termsCheckStatus: termsCheckStatus as TermsCheckStatus }))}>
-            {(["NOT_CHECKED", "NO_RESTRICTION_FOUND", "RESTRICTION_FOUND", "NEEDS_REVIEW"] as TermsCheckStatus[]).map((status) => (
-              <option key={status} value={status}>{status}</option>
+            {(["NOT_CHECKED", "NO_RESTRICTION_FOUND", "NEEDS_REVIEW", "RESTRICTION_FOUND", "BLOCKED"] as TermsCheckStatus[]).map((status) => (
+              <option key={status} value={status}>{termsCheckLabels[status]}</option>
             ))}
           </FieldSelect>
           <p className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800">
-            이용약관 확인 여부를 직접 입력하세요. 약관 페이지에서 크롤링, 스크래핑, 재배포, 자동 수집 금지 조항이 있는지 확인하지 않으면 자동 수집이 허용되지 않습니다.
+            약관 미확인 상태는 수집 실행을 막지 않습니다. 수집 실행 시 robots.txt와 접근 가능 여부를 먼저 자동 점검하고, 약관 수동 검토가 필요하면 NEEDS_REVIEW로 표시하세요.
           </p>
           <FieldSelect label="검증 방식" value={form.collectionMethod} onChange={(collectionMethod) => setForm((current) => ({ ...current, collectionMethod: collectionMethod as CollectionMethod }))}>
             {(["UNKNOWN", "AUTO_COLLECTED", "MANUAL_VERIFIED", "MIXED"] as CollectionMethod[]).map((method) => (
@@ -546,10 +673,10 @@ export function AdminSourceWatchesPanel() {
                   <button
                     className="h-9 rounded-lg bg-blue-600 px-3 text-sm font-semibold text-white disabled:opacity-60"
                     type="button"
-                    disabled={!sourceWatch.isActive || sourceWatch.collectionPermissionStatus !== "ALLOWED_TO_COLLECT" || collectingId === sourceWatch.id}
+                    disabled={!canCollect(sourceWatch) || collectingId === sourceWatch.id}
                     onClick={() => handleCollect(sourceWatch)}
                   >
-                    {collectingId === sourceWatch.id ? "수집 중..." : "수집 실행"}
+                    {collectingId === sourceWatch.id ? "수집 중..." : getCollectButtonLabel(sourceWatch)}
                   </button>
                   {!isRegenerationBlocked(sourceWatch) ? (
                     <button
@@ -602,15 +729,100 @@ export function AdminSourceWatchesPanel() {
                 <Info label="수동 검수 메모" value={sourceWatch.manualVerificationNote ?? "-"} wide />
               </dl>
               <p className="mt-4 rounded-lg bg-neutral-50 p-3 text-sm leading-6 text-neutral-700">
-                {getPolicyGuidance(sourceWatch.collectionPermissionStatus)}
+                {getPolicyGuidance(sourceWatch)}
               </p>
               {isRegenerationBlocked(sourceWatch) ? (
                 <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-800">
-                  이 출처는 robots.txt 또는 정책 상태에 의해 자동 수집 및 후보 재생성이 차단되어 있습니다.
-                  공식 페이지를 직접 확인한 뒤 혜택 정보를 수동으로 등록하거나 수정해 주세요.
-                  수동 혜택 등록 화면은 아직 없습니다. 현재는 공개 혜택 관리에서 기존 혜택을 수정해 주세요.
+                  후보 재생성은 정책 점검 결과 수집 가능한 출처의 저장된 최신 스냅샷에만 사용할 수 있습니다.
+                  미확인 출처는 먼저 수집 실행으로 자동 점검을 수행해 주세요.
                 </p>
               ) : null}
+              <section className="mt-4 rounded-xl border border-neutral-200 bg-white p-4">
+                <div>
+                  <h4 className="text-sm font-bold text-neutral-950">약관 확인</h4>
+                  <p className="mt-1 text-xs leading-5 text-neutral-500">
+                    자동 탐색된 약관 후보 링크입니다. 직접 열어 확인한 뒤 상태를 선택하세요.
+                  </p>
+                </div>
+                {(sourceWatch.termsLinkCandidates ?? []).length > 0 ? (
+                  <div className="mt-3 space-y-2">
+                    {sourceWatch.termsLinkCandidates.map((candidate) => (
+                      <a
+                        key={`${candidate.type}-${candidate.url}`}
+                        className="flex flex-col gap-1 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-xs transition hover:border-blue-200 hover:bg-blue-50 sm:flex-row sm:items-center sm:justify-between"
+                        href={candidate.url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className={`rounded-full px-2 py-1 font-semibold ${termsCandidateClass[candidate.type] ?? termsCandidateClass.OTHER}`}>
+                            {termsCandidateTypeLabels[candidate.type] ?? candidate.type}
+                          </span>
+                          <span className="font-semibold text-neutral-800">{candidate.label}</span>
+                          <span className="text-neutral-400">{candidate.confidence}</span>
+                        </span>
+                        <span className="break-all text-neutral-500">{candidate.url}</span>
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 rounded-lg bg-neutral-50 p-3 text-xs leading-5 text-neutral-500">
+                    수집 대상 페이지를 읽지 못했거나 약관 후보 링크를 자동 탐색하지 못했습니다.
+                  </p>
+                )}
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <label className="text-xs font-semibold text-neutral-700">
+                    약관 상태
+                    <select
+                      className="mt-1 h-10 w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm font-normal"
+                      value={(termsForms[sourceWatch.id] ?? toTermsForm(sourceWatch)).termsCheckStatus}
+                      onChange={(event) => updateTermsForm(sourceWatch.id, { termsCheckStatus: event.target.value as TermsCheckStatus })}
+                    >
+                      {(["NOT_CHECKED", "NO_RESTRICTION_FOUND", "NEEDS_REVIEW", "RESTRICTION_FOUND", "BLOCKED"] as TermsCheckStatus[]).map((status) => (
+                        <option key={status} value={status}>
+                          {termsCheckLabels[status]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs font-semibold text-neutral-700">
+                    약관 확인일
+                    <input
+                      className="mt-1 h-10 w-full rounded-lg border border-neutral-200 px-3 text-sm font-normal"
+                      type="date"
+                      value={(termsForms[sourceWatch.id] ?? toTermsForm(sourceWatch)).termsCheckedAt}
+                      onChange={(event) => updateTermsForm(sourceWatch.id, { termsCheckedAt: event.target.value })}
+                    />
+                  </label>
+                  <label className="text-xs font-semibold text-neutral-700 md:col-span-2">
+                    약관 URL
+                    <input
+                      className="mt-1 h-10 w-full rounded-lg border border-neutral-200 px-3 text-sm font-normal"
+                      type="url"
+                      value={(termsForms[sourceWatch.id] ?? toTermsForm(sourceWatch)).termsUrl}
+                      onChange={(event) => updateTermsForm(sourceWatch.id, { termsUrl: event.target.value })}
+                      placeholder="https://example.com/terms"
+                    />
+                  </label>
+                  <label className="text-xs font-semibold text-neutral-700 md:col-span-2">
+                    약관 확인 메모
+                    <textarea
+                      className="mt-1 min-h-20 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm font-normal"
+                      value={(termsForms[sourceWatch.id] ?? toTermsForm(sourceWatch)).termsMemo}
+                      onChange={(event) => updateTermsForm(sourceWatch.id, { termsMemo: event.target.value })}
+                      placeholder="자동 수집 금지 문구, 이미지/상표 사용 제한, 수동 검토 필요 사항을 기록하세요."
+                    />
+                  </label>
+                </div>
+                <button
+                  className="mt-3 h-9 rounded-lg bg-blue-600 px-3 text-sm font-semibold text-white disabled:opacity-60"
+                  type="button"
+                  disabled={savingTermsId === sourceWatch.id}
+                  onClick={() => handleTermsCheckSave(sourceWatch)}
+                >
+                  {savingTermsId === sourceWatch.id ? "저장 중" : "약관 확인 결과 저장"}
+                </button>
+              </section>
               <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-semibold text-neutral-800">최근 CollectionRun</span>

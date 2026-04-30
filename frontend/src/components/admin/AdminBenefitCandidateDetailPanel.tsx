@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   approveBenefitCandidate,
   getBenefitCandidate,
@@ -232,7 +232,7 @@ export function AdminBenefitCandidateDetailPanel({ candidateId }: { candidateId:
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -250,11 +250,11 @@ export function AdminBenefitCandidateDetailPanel({ candidateId }: { candidateId:
     } finally {
       setLoading(false);
     }
-  }
+  }, [candidateId]);
 
   useEffect(() => {
     loadAll();
-  }, [candidateId]);
+  }, [loadAll]);
 
   const sourceWatch = useMemo(
       () => sourceWatches.find((item) => item.id === candidate?.sourceWatchId) ?? null,

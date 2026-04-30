@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.noh.zup.domain.brand.BrandRepository;
 import com.noh.zup.domain.collection.candidate.BenefitCandidateDetector;
 import com.noh.zup.domain.collection.extract.HtmlTextExtractor;
+import com.noh.zup.domain.collection.extract.TermsLinkCandidateExtractor;
 import com.noh.zup.domain.collection.fetch.OfficialSourceFetcher;
 import com.noh.zup.domain.collection.robots.RobotsTxtChecker;
 import com.noh.zup.domain.collection.scheduler.CollectionLock;
@@ -31,6 +32,7 @@ class SourceWatchServiceTest {
     private final OfficialSourceFetcher officialSourceFetcher = mock(OfficialSourceFetcher.class);
     private final RobotsTxtChecker robotsTxtChecker = mock(RobotsTxtChecker.class);
     private final HtmlTextExtractor htmlTextExtractor = mock(HtmlTextExtractor.class);
+    private final TermsLinkCandidateExtractor termsLinkCandidateExtractor = mock(TermsLinkCandidateExtractor.class);
     private final BenefitCandidateDetector benefitCandidateDetector = mock(BenefitCandidateDetector.class);
     private final CollectionRedisLock collectionRedisLock = mock(CollectionRedisLock.class);
 
@@ -47,6 +49,7 @@ class SourceWatchServiceTest {
                 officialSourceFetcher,
                 robotsTxtChecker,
                 htmlTextExtractor,
+                termsLinkCandidateExtractor,
                 benefitCandidateDetector,
                 collectionRedisLock,
                 60,

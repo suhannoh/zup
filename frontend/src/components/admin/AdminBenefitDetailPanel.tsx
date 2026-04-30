@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   addAdminBenefitTag,
   createAdminBenefitDetailItem,
@@ -198,7 +199,7 @@ export function AdminBenefitDetailPanel({ benefitId }: { benefitId: number }) {
     return selected ? connectedTagSlugs.has(selected.slug) : false;
   }, [connectedTagSlugs, selectedTagId, tags]);
 
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -219,7 +220,7 @@ export function AdminBenefitDetailPanel({ benefitId }: { benefitId: number }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [benefitId]);
 
   async function reloadBenefitAndLogs() {
     const [benefitData, logData] = await Promise.all([
@@ -232,7 +233,7 @@ export function AdminBenefitDetailPanel({ benefitId }: { benefitId: number }) {
 
   useEffect(() => {
     loadAll();
-  }, [benefitId]);
+  }, [loadAll]);
 
   function updateSourceForm(next: Partial<SourceFormState>) {
     setSourceForm((current) => ({ ...current, ...next }));
@@ -825,10 +826,13 @@ function ImageUrlField({ onChange, value }: { onChange: (value: string) => void;
       <div className="grid gap-3 rounded-xl border border-neutral-200 bg-white p-3 md:grid-cols-[120px_minmax(0,1fr)]">
         <div className="flex h-24 w-full items-center justify-center overflow-hidden rounded-lg border border-neutral-200 bg-neutral-50">
           {canPreview ? (
-            <img
+            <Image
               alt="혜택 이미지 미리보기"
               className="max-h-full max-w-full object-contain"
               src={imageUrl}
+              width={112}
+              height={88}
+              unoptimized
               onError={() => setFailedUrl(imageUrl)}
               onLoad={() => setFailedUrl(null)}
             />

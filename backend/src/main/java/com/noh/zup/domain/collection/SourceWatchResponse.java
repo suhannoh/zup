@@ -1,7 +1,9 @@
 package com.noh.zup.domain.collection;
 
 import com.noh.zup.domain.source.SourceType;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record SourceWatchResponse(
         Long id,
@@ -25,6 +27,10 @@ public record SourceWatchResponse(
         LocalDateTime lastManualVerifiedAt,
         String policyCheckNote,
         String manualVerificationNote,
+        String termsUrl,
+        LocalDate termsCheckedAt,
+        String termsMemo,
+        List<TermsLinkCandidate> termsLinkCandidates,
         RecentCollectionRunSummaryResponse recentCollectionRun,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
@@ -55,6 +61,10 @@ public record SourceWatchResponse(
                 sourceWatch.getLastManualVerifiedAt(),
                 sourceWatch.getPolicyCheckNote(),
                 sourceWatch.getManualVerificationNote(),
+                sourceWatch.getTermsUrl(),
+                sourceWatch.getTermsCheckedAt(),
+                sourceWatch.getTermsMemo(),
+                TermsLinkCandidateJson.read(sourceWatch.getTermsLinkCandidatesJson()),
                 recentCollectionRun,
                 sourceWatch.getCreatedAt(),
                 sourceWatch.getUpdatedAt()

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getCategoryTheme } from "@/lib/categoryTheme";
 import type { BrandListItem } from "@/types/brand";
 
 function getInitial(name: string) {
@@ -6,18 +7,21 @@ function getInitial(name: string) {
 }
 
 export function BrandCard({ brand }: { brand: BrandListItem }) {
+  const theme = getCategoryTheme(brand.categorySlug);
+
   return (
-    <article className="rounded-xl border border-border bg-white p-5 shadow-sm transition hover:border-blue-200 hover:shadow-md">
+    <article className="rounded-xl border border-border bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg focus-within:border-blue-300 focus-within:shadow-lg">
       <div className="flex items-start gap-3">
         <div
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-base font-bold text-white"
-          style={{ backgroundColor: brand.brandColor ?? "#3B6FE8" }}
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-base font-bold ${theme.icon}`}
           aria-hidden="true"
         >
           {getInitial(brand.name)}
         </div>
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-accent">{brand.categoryName}</p>
+          <p className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${theme.badge}`}>
+            {brand.categoryName}
+          </p>
           <h3 className="mt-1 truncate text-lg font-bold text-neutral-950">{brand.name}</h3>
         </div>
       </div>
@@ -26,9 +30,10 @@ export function BrandCard({ brand }: { brand: BrandListItem }) {
       </p>
       <Link
         href={`/brands/${brand.slug}`}
-        className="mt-5 inline-flex text-sm font-semibold text-accent hover:text-blue-700"
+        className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-accent transition hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
       >
         상세 보기
+        <span aria-hidden="true">→</span>
       </Link>
     </article>
   );

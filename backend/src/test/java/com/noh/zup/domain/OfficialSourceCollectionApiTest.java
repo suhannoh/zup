@@ -689,6 +689,114 @@ class OfficialSourceCollectionApiTest {
     }
 
     @Test
+    void uncheckedPolicyRunsAutomaticPolicyCheckBeforeCollecting() throws Exception {
+        when(officialSourceFetcher.fetch(anyString())).thenAnswer(invocation -> {
+            String url = invocation.getArgument(0);
+            if (url.endsWith("/robots.txt")) {
+                return FetchResult.success(200, """
+                        User-agent: *
+                        Allow: /official-benefit
+                        """);
+            }
+            return FetchResult.success(200, birthdayCouponHtml());
+        });
+        Long brandId = brandRepository.findBySlug("cgv").orElseThrow().getId();
+        Long sourceWatchId = createUncheckedSourceWatch(brandId, "Unchecked policy auto collect page");
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fetched").value(true))
+                .andExpect(jsonPath("$.data.candidateCount").value(1));
+
+        mockMvc.perform(get("/api/v1/admin/source-watches"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.id == " + sourceWatchId + ")].robotsCheckStatus").value(org.hamcrest.Matchers.contains("ALLOWED")))
+                .andExpect(jsonPath("$.data[?(@.id == " + sourceWatchId + ")].termsCheckStatus").value(org.hamcrest.Matchers.contains("NOT_CHECKED")))
+                .andExpect(jsonPath("$.data[?(@.id == " + sourceWatchId + ")].collectionPermissionStatus").value(org.hamcrest.Matchers.contains("ALLOWED_TO_COLLECT")));
+    }
+
+    @Test
+    void loginRequiredPageSkipsCollectionAndUpdatesPolicy() throws Exception {
+        when(officialSourceFetcher.fetch(anyString())).thenAnswer(invocation -> {
+            String url = invocation.getArgument(0);
+            if (url.endsWith("/robots.txt")) {
+                return FetchResult.failure(404, "HTTP status 404");
+            }
+            return FetchResult.success(200, "<html><body>로그인이 필요합니다. 회원 로그인 후 이용해 주세요.</body></html>");
+        });
+        Long brandId = brandRepository.findBySlug("cgv").orElseThrow().getId();
+        Long sourceWatchId = createUncheckedSourceWatch(brandId, "Login required page");
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fetched").value(false))
+                .andExpect(jsonPath("$.data.failureReason").value("LOGIN_REQUIRED"));
+
+        mockMvc.perform(get("/api/v1/admin/source-watches/{id}/collection-runs", sourceWatchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].status").value("SKIPPED"))
+                .andExpect(jsonPath("$.data[0].failureReason").value("LOGIN_REQUIRED"));
+
+        mockMvc.perform(get("/api/v1/admin/source-watches"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.id == " + sourceWatchId + ")].loginRequired").value(org.hamcrest.Matchers.contains(true)))
+                .andExpect(jsonPath("$.data[?(@.id == " + sourceWatchId + ")].collectionPermissionStatus").value(org.hamcrest.Matchers.contains("LOGIN_REQUIRED")));
+    }
+
+    @Test
+    void collectExtractsTermsLinkCandidatesFromFetchedHtml() throws Exception {
+        when(officialSourceFetcher.fetch(anyString())).thenAnswer(invocation -> {
+            String url = invocation.getArgument(0);
+            if (url.endsWith("/robots.txt")) {
+                return FetchResult.failure(404, "HTTP status 404");
+            }
+            return FetchResult.success(200, """
+                    <html><body>
+                      <main>생일 쿠폰 혜택을 제공합니다.</main>
+                      <footer>
+                        <a href="/terms">이용약관</a>
+                        <a href="https://example.com/legal">법적고지</a>
+                        <a href="/privacy">개인정보처리방침</a>
+                        <a href="/terms">이용약관</a>
+                      </footer>
+                    </body></html>
+                    """);
+        });
+        Long brandId = brandRepository.findBySlug("cgv").orElseThrow().getId();
+        Long sourceWatchId = createUncheckedSourceWatch(brandId, "Terms candidate page");
+
+        mockMvc.perform(post("/api/v1/admin/source-watches/{id}/collect", sourceWatchId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/admin/source-watches"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.id == " + sourceWatchId + ")].termsLinkCandidates[*][?(@.url == 'https://example.com/terms')]", hasSize(1)))
+                .andExpect(jsonPath("$.data[?(@.id == " + sourceWatchId + ")].termsLinkCandidates[*][?(@.type == 'TERMS')]", hasSize(1)))
+                .andExpect(jsonPath("$.data[?(@.id == " + sourceWatchId + ")].termsLinkCandidates[*][?(@.type == 'LEGAL')]", hasSize(1)))
+                .andExpect(jsonPath("$.data[?(@.id == " + sourceWatchId + ")].termsLinkCandidates[*][?(@.type == 'PRIVACY')]", hasSize(1)));
+    }
+
+    @Test
+    void termsCheckCanBeUpdatedByAdmin() throws Exception {
+        Long brandId = brandRepository.findBySlug("cgv").orElseThrow().getId();
+        Long sourceWatchId = createUncheckedSourceWatch(brandId, "Terms check update page");
+
+        mockMvc.perform(patch("/api/v1/admin/source-watches/{id}/terms-check", sourceWatchId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "termsCheckStatus", "NO_RESTRICTION_FOUND",
+                                "termsUrl", "https://example.com/terms",
+                                "termsCheckedAt", "2026-04-30",
+                                "termsMemo", "자동 수집 금지 문구는 확인되지 않음"
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.termsCheckStatus").value("NO_RESTRICTION_FOUND"))
+                .andExpect(jsonPath("$.data.termsUrl").value("https://example.com/terms"))
+                .andExpect(jsonPath("$.data.termsCheckedAt").value("2026-04-30"))
+                .andExpect(jsonPath("$.data.termsMemo").value("자동 수집 금지 문구는 확인되지 않음"));
+    }
+
+    @Test
     void robotsTxtFetchFailureSkipsCollectionConservatively() throws Exception {
         when(officialSourceFetcher.fetch(anyString())).thenReturn(FetchResult.failure(0, "I/O error while fetching source"));
         Long brandId = brandRepository.findBySlug("cgv").orElseThrow().getId();
@@ -1229,9 +1337,30 @@ class OfficialSourceCollectionApiTest {
                                 "title", title,
                                 "url", url,
                                 "isActive", true,
+                                "robotsCheckStatus", "ALLOWED",
                                 "termsCheckStatus", "NO_RESTRICTION_FOUND",
                                 "collectionMethod", "AUTO_COLLECTED",
                                 "policyCheckNote", "test fixture policy pre-approved"
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("source watch created"))
+                .andReturn();
+        JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
+        return response.get("data").get("id").asLong();
+    }
+
+    private Long createUncheckedSourceWatch(Long brandId, String title) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/admin/source-watches")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "brandId", brandId,
+                                "sourceType", "OFFICIAL_HOME",
+                                "title", title,
+                                "url", "https://example.com/official-benefit",
+                                "isActive", true,
+                                "termsCheckStatus", "NOT_CHECKED",
+                                "robotsCheckStatus", "UNKNOWN",
+                                "collectionMethod", "UNKNOWN"
                         ))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("source watch created"))

@@ -259,13 +259,20 @@ CJ ONE 생일축하쿠폰 샘플 HTML 기준으로 서버 HTML 안에는 쿠폰 
 ## 15. 보수적 수집 허용 기준
 
 - SourceWatch 자동 수집은 robots.txt 확인, 공개 페이지 여부, 약관 수동 확인, 로그인 필요 여부, 요청 간격 제한을 모두 통과한 경우에만 허용한다.
-- `termsCheckStatus`는 자동 판단하지 않는다. 관리자가 약관 페이지를 직접 열어 크롤링, 스크래핑, 재배포, 자동 수집 금지 조항을 확인한 뒤 입력한다.
-- `termsCheckStatus=NOT_CHECKED`는 allowed가 아니다. 신규 SourceWatch 기본값은 `NOT_CHECKED`와 `UNKNOWN_NEEDS_REVIEW`이며 자동 수집 버튼은 비활성화한다.
-- `robotsCheckStatus=DISALLOWED/FETCH_FAILED/PARSE_FAILED`, `termsCheckStatus=RESTRICTION_FOUND/NOT_CHECKED/NEEDS_REVIEW`, `loginRequired=true`, `collectionPermissionStatus != ALLOWED_TO_COLLECT`는 모두 `SKIPPED` 처리한다.
+- `termsCheckStatus`는 자동 최종 판단하지 않는다. 시스템은 수집 대상 HTML에서 약관/법적고지/개인정보처리방침 후보 링크를 탐색해 관리자에게 보여주고, 관리자가 약관 페이지를 직접 열어 크롤링, 스크래핑, 재배포, 자동 수집 금지 조항을 확인한 뒤 상태와 메모를 저장한다.
+- `termsCheckStatus=NOT_CHECKED`는 수집 실행 자체를 막지 않는다. 수집 실행 시 robots.txt와 접근 가능 여부를 먼저 자동 점검하고, HTML fetch가 성공하면 약관 후보 링크를 갱신한다.
+- `robotsCheckStatus=DISALLOWED/FETCH_FAILED/PARSE_FAILED`, `termsCheckStatus=RESTRICTION_FOUND/NEEDS_REVIEW/BLOCKED`, `loginRequired=true`, 수동 검토 전용 상태는 `SKIPPED` 처리한다.
 - `collectionPermissionStatus`는 규칙으로 계산한다. 관리자가 수동으로 `ALLOWED_TO_COLLECT`로 올릴 수 없고, `MANUAL_REVIEW_ONLY`로 낮추는 것만 허용한다.
 - robots-blocked 사이트의 기존 `PageSnapshot`은 30일 후 삭제 대상으로 `expiresAt`을 관리한다. 이번 단계에서 실제 DB 삭제는 하지 않는다.
 - robots-blocked 또는 terms-blocked 출처의 미승인 후보는 `needsManualReview=true`로 전환해 관리자 재검토 대상으로 표시한다.
 - 이미 public인 Benefit은 유지하되, `lastVerifiedDate` 또는 `lastVerifiedAt`이 30일 이상 지난 경우 대시보드에서 재확인 대상으로 본다.
+
+### 약관 후보 링크 탐색 정책
+
+- 탐색 대상은 수집 대상 HTML의 `<a href>` 링크이며, `이용약관`, `약관`, `서비스 이용약관`, `법적고지`, `저작권`, `개인정보처리방침`, `terms`, `terms of service`, `terms and conditions`, `legal`, `copyright`, `policy`, `privacy` 등의 문구를 후보로 본다.
+- 상대 경로는 SourceWatch URL 기준의 절대 URL로 정규화하고, 중복 URL은 제거한다.
+- 개인정보처리방침은 약관 판단의 직접 근거가 아닐 수 있으므로 `PRIVACY` 후보로 분리해 낮은 우선순위로 표시한다.
+- 출처 표시만으로 이미지, 상표, 쿠폰 이미지, 원문 콘텐츠 사용 권한이 보장되는 것은 아니다. 관리자는 약관 URL, 확인일, 상태, 메모를 남겨 수동 판단 근거를 보존한다.
 
 ## 16. Public 고지와 이미지 정책
 

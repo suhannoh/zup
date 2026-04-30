@@ -6,7 +6,10 @@ export type HealthResponse = {
 };
 
 export const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080",
+  baseURL:
+    typeof window === "undefined"
+      ? process.env.INTERNAL_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080"
+      : process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080",
   timeout: 5000,
 });
 

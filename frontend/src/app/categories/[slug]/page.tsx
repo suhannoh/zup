@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BrandCard } from "@/components/public/BrandCard";
+import { CategoryPill } from "@/components/public/CategoryPill";
 import { EmptyState } from "@/components/public/EmptyState";
 import { SectionHeader } from "@/components/public/SectionHeader";
 import { TagPill } from "@/components/public/TagPill";
@@ -83,6 +84,12 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
         title={title}
         description="카테고리별 브랜드를 모아보고, 각 브랜드 상세에서 공개된 생일 혜택을 확인하세요."
       />
+
+      <div className="flex flex-wrap gap-2">
+        {categories.map((item) => (
+          <CategoryPill key={item.slug} category={item} selected={item.slug === slug} />
+        ))}
+      </div>
 
       {brands.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -11,8 +11,18 @@ export type CollectionPermissionStatus =
   | "LOGIN_REQUIRED"
   | "UNKNOWN_NEEDS_REVIEW";
 export type RobotsCheckStatus = "ALLOWED" | "DISALLOWED" | "NOT_FOUND" | "FETCH_FAILED" | "PARSE_FAILED" | "UNKNOWN";
-export type TermsCheckStatus = "NOT_CHECKED" | "NO_RESTRICTION_FOUND" | "RESTRICTION_FOUND" | "NEEDS_REVIEW";
+export type TermsCheckStatus = "NOT_CHECKED" | "NO_RESTRICTION_FOUND" | "RESTRICTION_FOUND" | "NEEDS_REVIEW" | "BLOCKED";
 export type CollectionMethod = "AUTO_COLLECTED" | "MANUAL_VERIFIED" | "MIXED" | "UNKNOWN";
+
+export type TermsLinkCandidateType = "TERMS" | "LEGAL" | "PRIVACY" | "COPYRIGHT" | "OTHER";
+export type TermsLinkCandidateConfidence = "HIGH" | "MEDIUM" | "LOW";
+
+export type TermsLinkCandidate = {
+  label: string;
+  url: string;
+  type: TermsLinkCandidateType;
+  confidence: TermsLinkCandidateConfidence;
+};
 
 export type RecentCollectionRunSummary = {
   id: number;
@@ -48,6 +58,10 @@ export type SourceWatch = {
   lastManualVerifiedAt: string | null;
   policyCheckNote: string | null;
   manualVerificationNote: string | null;
+  termsUrl: string | null;
+  termsCheckedAt: string | null;
+  termsMemo: string | null;
+  termsLinkCandidates: TermsLinkCandidate[];
   recentCollectionRun: RecentCollectionRunSummary | null;
   createdAt: string;
   updatedAt: string;
@@ -69,6 +83,13 @@ export type SourceWatchCreateRequest = {
 
 export type SourceWatchUpdateRequest = Partial<SourceWatchCreateRequest> & {
   collectionPermissionStatus?: CollectionPermissionStatus | null;
+};
+
+export type SourceWatchTermsCheckRequest = {
+  termsCheckStatus?: TermsCheckStatus | null;
+  termsUrl?: string | null;
+  termsCheckedAt?: string | null;
+  termsMemo?: string | null;
 };
 
 export type SourceWatchCollectResponse = {

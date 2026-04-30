@@ -34,23 +34,39 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-16 py-6 md:py-12">
-      <section className="max-w-3xl">
-        <p className="text-sm font-medium text-accent">혜택 정보 큐레이션</p>
-        <h1 className="mt-4 text-4xl font-bold leading-tight md:text-6xl">Zup</h1>
-        <p className="mt-4 text-2xl font-semibold leading-tight md:text-3xl">
-          몰라서 못 받던 혜택, 오늘 줍자
-        </p>
-        <p className="mt-5 text-base leading-8 text-neutral-600 md:text-lg">
-          브랜드별 생일 혜택을 공식 출처 기준으로 정리하고, 앱 필요 여부·멤버십 조건·사용 기간까지 한눈에
-          확인하세요.
-        </p>
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Link className="rounded-lg bg-accent px-5 py-3 text-sm font-semibold text-white" href="/brands">
-            혜택 보러가기
-          </Link>
-          <Link className="rounded-lg border border-border bg-white px-5 py-3 text-sm font-semibold" href="/reports/new">
-            정보 제보하기
-          </Link>
+      <section className="relative overflow-hidden rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-emerald-50 px-6 py-16 md:px-12 md:py-24">
+        <div
+          className="absolute inset-0 opacity-40"
+          style={{
+            backgroundImage: "radial-gradient(circle at 1px 1px, rgba(37, 99, 235, 0.18) 1px, transparent 0)",
+            backgroundSize: "28px 28px",
+          }}
+          aria-hidden="true"
+        />
+        <div className="relative max-w-3xl">
+          <p className="text-sm font-medium text-accent">혜택 정보 큐레이션</p>
+          <h1 className="mt-4 text-4xl font-bold leading-tight md:text-6xl">Zup</h1>
+          <p className="mt-4 text-2xl font-semibold leading-tight md:text-3xl">
+            몰라서 못 받던 혜택, 오늘 줍자
+          </p>
+          <p className="mt-5 text-base leading-8 text-neutral-600 md:text-lg">
+            브랜드별 생일 혜택을 공식 출처 기준으로 정리하고, 앱 필요 여부·멤버십 조건·사용 기간까지 한눈에
+            확인하세요.
+          </p>
+          <div className="mt-10 flex flex-wrap gap-3">
+            <Link
+              className="rounded-lg bg-accent px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              href="/brands"
+            >
+              혜택 보러가기
+            </Link>
+            <Link
+              className="rounded-lg border border-blue-200 bg-white/80 px-5 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              href="/reports/new"
+            >
+              정보 제보하기
+            </Link>
+          </div>
         </div>
       </section>
 

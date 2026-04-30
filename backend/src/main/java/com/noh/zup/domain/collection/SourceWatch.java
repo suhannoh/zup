@@ -14,7 +14,9 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "source_watches")
@@ -83,6 +85,17 @@ public class SourceWatch extends BaseTimeEntity {
 
     @Column(columnDefinition = "text")
     private String manualVerificationNote;
+
+    @Column(length = 1000)
+    private String termsUrl;
+
+    private LocalDate termsCheckedAt;
+
+    @Column(columnDefinition = "text")
+    private String termsMemo;
+
+    @Column(columnDefinition = "text")
+    private String termsLinkCandidatesJson;
 
     protected SourceWatch() {
     }
@@ -158,6 +171,42 @@ public class SourceWatch extends BaseTimeEntity {
         this.collectionPermissionStatus = calculatePermissionStatus(this.collectionPermissionStatus);
     }
 
+    public void updateLoginRequiredPolicy(Boolean loginRequired, String policyCheckNote) {
+        this.loginRequired = loginRequired;
+        this.lastPolicyCheckedAt = LocalDateTime.now();
+        if (policyCheckNote != null) {
+            this.policyCheckNote = policyCheckNote;
+        }
+        this.collectionPermissionStatus = calculatePermissionStatus(this.collectionPermissionStatus);
+    }
+
+    public void updateTermsCheck(
+            TermsCheckStatus termsCheckStatus,
+            String termsUrl,
+            LocalDate termsCheckedAt,
+            String termsMemo
+    ) {
+        if (termsCheckStatus != null) {
+            this.termsCheckStatus = termsCheckStatus;
+        }
+        if (termsUrl != null) {
+            this.termsUrl = termsUrl;
+        }
+        if (termsCheckedAt != null) {
+            this.termsCheckedAt = termsCheckedAt;
+        }
+        if (termsMemo != null) {
+            this.termsMemo = termsMemo;
+            this.policyCheckNote = termsMemo;
+        }
+        this.lastPolicyCheckedAt = LocalDateTime.now();
+        this.collectionPermissionStatus = calculatePermissionStatus(this.collectionPermissionStatus);
+    }
+
+    public void updateTermsLinkCandidates(List<TermsLinkCandidate> candidates) {
+        this.termsLinkCandidatesJson = TermsLinkCandidateJson.write(candidates);
+    }
+
     public void changeActive(Boolean isActive) {
         this.isActive = isActive;
     }
@@ -194,16 +243,17 @@ public class SourceWatch extends BaseTimeEntity {
         if (robotsCheckStatus == RobotsCheckStatus.FETCH_FAILED || robotsCheckStatus == RobotsCheckStatus.PARSE_FAILED) {
             return CollectionPermissionStatus.UNKNOWN_NEEDS_REVIEW;
         }
-        if (termsCheckStatus == TermsCheckStatus.RESTRICTION_FOUND) {
+        if (termsCheckStatus == TermsCheckStatus.RESTRICTION_FOUND || termsCheckStatus == TermsCheckStatus.BLOCKED) {
             return CollectionPermissionStatus.BLOCKED_BY_TERMS;
         }
-        if (termsCheckStatus == TermsCheckStatus.NOT_CHECKED || termsCheckStatus == TermsCheckStatus.NEEDS_REVIEW) {
+        if (termsCheckStatus == TermsCheckStatus.NEEDS_REVIEW) {
             return CollectionPermissionStatus.UNKNOWN_NEEDS_REVIEW;
         }
         if (Boolean.TRUE.equals(loginRequired)) {
             return CollectionPermissionStatus.LOGIN_REQUIRED;
         }
-        if (termsCheckStatus == TermsCheckStatus.NO_RESTRICTION_FOUND) {
+        if ((robotsCheckStatus == RobotsCheckStatus.ALLOWED || robotsCheckStatus == RobotsCheckStatus.NOT_FOUND)
+                && (termsCheckStatus == TermsCheckStatus.NO_RESTRICTION_FOUND || termsCheckStatus == TermsCheckStatus.NOT_CHECKED)) {
             return CollectionPermissionStatus.ALLOWED_TO_COLLECT;
         }
         return CollectionPermissionStatus.UNKNOWN_NEEDS_REVIEW;
@@ -287,5 +337,21 @@ public class SourceWatch extends BaseTimeEntity {
 
     public String getManualVerificationNote() {
         return manualVerificationNote;
+    }
+
+    public String getTermsUrl() {
+        return termsUrl;
+    }
+
+    public LocalDate getTermsCheckedAt() {
+        return termsCheckedAt;
+    }
+
+    public String getTermsMemo() {
+        return termsMemo;
+    }
+
+    public String getTermsLinkCandidatesJson() {
+        return termsLinkCandidatesJson;
     }
 }

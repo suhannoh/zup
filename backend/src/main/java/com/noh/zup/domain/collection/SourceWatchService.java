@@ -8,6 +8,7 @@ import com.noh.zup.domain.collection.candidate.BenefitCandidateDetector;
 import com.noh.zup.domain.collection.candidate.BenefitCandidateDetectionResult;
 import com.noh.zup.domain.collection.extract.ExtractedText;
 import com.noh.zup.domain.collection.extract.HtmlTextExtractor;
+import com.noh.zup.domain.collection.extract.TermsLinkCandidateExtractor;
 import com.noh.zup.domain.collection.fetch.FetchResult;
 import com.noh.zup.domain.collection.fetch.OfficialSourceFetcher;
 import com.noh.zup.domain.collection.robots.RobotsTxtCheckResult;
@@ -44,6 +45,7 @@ public class SourceWatchService {
     private final OfficialSourceFetcher officialSourceFetcher;
     private final RobotsTxtChecker robotsTxtChecker;
     private final HtmlTextExtractor htmlTextExtractor;
+    private final TermsLinkCandidateExtractor termsLinkCandidateExtractor;
     private final BenefitCandidateDetector benefitCandidateDetector;
     private final CollectionRedisLock collectionRedisLock;
     private final long minDomainIntervalSeconds;
@@ -58,6 +60,7 @@ public class SourceWatchService {
             OfficialSourceFetcher officialSourceFetcher,
             RobotsTxtChecker robotsTxtChecker,
             HtmlTextExtractor htmlTextExtractor,
+            TermsLinkCandidateExtractor termsLinkCandidateExtractor,
             BenefitCandidateDetector benefitCandidateDetector,
             CollectionRedisLock collectionRedisLock,
             @Value("${app.crawler.min-domain-interval-seconds:60}") long minDomainIntervalSeconds,
@@ -71,6 +74,7 @@ public class SourceWatchService {
         this.officialSourceFetcher = officialSourceFetcher;
         this.robotsTxtChecker = robotsTxtChecker;
         this.htmlTextExtractor = htmlTextExtractor;
+        this.termsLinkCandidateExtractor = termsLinkCandidateExtractor;
         this.benefitCandidateDetector = benefitCandidateDetector;
         this.collectionRedisLock = collectionRedisLock;
         this.minDomainIntervalSeconds = minDomainIntervalSeconds;
@@ -145,6 +149,21 @@ public class SourceWatchService {
     public SourceWatchResponse updateActive(Long id, Boolean isActive) {
         SourceWatch sourceWatch = getSourceWatch(id);
         sourceWatch.changeActive(isActive);
+        return SourceWatchResponse.from(sourceWatch, getRecentRun(sourceWatch.getId()));
+    }
+
+    @Transactional
+    public SourceWatchResponse updateTermsCheck(Long id, SourceWatchTermsCheckRequest request) {
+        SourceWatch sourceWatch = getSourceWatch(id);
+        sourceWatch.updateTermsCheck(
+                request.termsCheckStatus(),
+                request.termsUrl(),
+                request.termsCheckedAt(),
+                request.termsMemo()
+        );
+        if (sourceWatch.getCollectionPermissionStatus() == CollectionPermissionStatus.BLOCKED_BY_TERMS) {
+            benefitCandidateRepository.markUnapprovedAsNeedsManualReview(sourceWatch.getId());
+        }
         return SourceWatchResponse.from(sourceWatch, getRecentRun(sourceWatch.getId()));
     }
 
@@ -239,7 +258,7 @@ public class SourceWatchService {
                 return createSkippedResponse(sourceWatch, triggerType, "SOURCE_WATCH_INACTIVE", "비활성 SourceWatch라 수집을 건너뛰었습니다.");
             }
 
-            SkippedReason policySkippedReason = getPolicySkippedReason(sourceWatch);
+            SkippedReason policySkippedReason = getPreCheckPolicySkippedReason(sourceWatch);
             if (policySkippedReason != null) {
                 return createSkippedResponse(sourceWatch, triggerType, policySkippedReason.name(), "정책상 자동 수집 대상이 아니므로 건너뛰었습니다.");
             }
@@ -274,17 +293,35 @@ public class SourceWatchService {
                             robotsTxtCheckResult.message()
                     );
                 }
-                if (sourceWatch.getCollectionPermissionStatus() != CollectionPermissionStatus.ALLOWED_TO_COLLECT) {
-                    collectionRun.completeSkipped(SkippedReason.COLLECTION_PERMISSION_NOT_APPROVED.name(), "robots.txt 확인 후 정책상 자동 수집 대상이 아니므로 건너뛰었습니다.");
+                SkippedReason afterRobotsSkippedReason = getAfterRobotsPolicySkippedReason(sourceWatch);
+                if (afterRobotsSkippedReason != null) {
+                    collectionRun.completeSkipped(afterRobotsSkippedReason.name(), "robots.txt 확인 후 정책상 자동 수집 대상이 아니므로 건너뛰었습니다.");
                     sourceWatch.markSkipped();
-                    return new SourceWatchCollectResponse(id, false, false, 0, SkippedReason.COLLECTION_PERMISSION_NOT_APPROVED.name(), "정책상 건너뜀");
+                    return new SourceWatchCollectResponse(id, false, false, 0, afterRobotsSkippedReason.name(), "정책상 건너뜀");
                 }
 
                 FetchResult fetchResult = officialSourceFetcher.fetch(sourceWatch.getUrl());
                 if (!fetchResult.success()) {
+                    if (isLoginRequiredFailure(fetchResult)) {
+                        String message = "로그인 또는 인증이 필요한 페이지로 판단되어 자동 수집을 보류했습니다.";
+                        sourceWatch.updateLoginRequiredPolicy(true, message);
+                        sourceWatch.markSkipped();
+                        collectionRun.completeSkipped(SkippedReason.LOGIN_REQUIRED.name(), fetchResult.failureReason());
+                        return new SourceWatchCollectResponse(id, false, false, 0, SkippedReason.LOGIN_REQUIRED.name(), message);
+                    }
                     sourceWatch.markFailed();
                     collectionRun.completeFailed(false, "FETCH_FAILED", fetchResult.failureReason());
                     return new SourceWatchCollectResponse(id, false, false, 0, "FETCH_FAILED", fetchResult.failureReason());
+                }
+                sourceWatch.updateTermsLinkCandidates(
+                        termsLinkCandidateExtractor.extract(fetchResult.html(), sourceWatch.getUrl())
+                );
+                if (looksLikeLoginRequiredPage(fetchResult.html())) {
+                    String message = "로그인 또는 인증이 필요한 페이지로 판단되어 자동 수집을 보류했습니다.";
+                    sourceWatch.updateLoginRequiredPolicy(true, message);
+                    sourceWatch.markSkipped();
+                    collectionRun.completeSkipped(SkippedReason.LOGIN_REQUIRED.name(), message);
+                    return new SourceWatchCollectResponse(id, false, false, 0, SkippedReason.LOGIN_REQUIRED.name(), message);
                 }
 
                 ExtractedText extractedText = htmlTextExtractor.extract(fetchResult.html(), sourceWatch.getUrl());
@@ -343,7 +380,8 @@ public class SourceWatchService {
         if (sourceWatch.getRobotsCheckStatus() == RobotsCheckStatus.PARSE_FAILED) {
             return SkippedReason.ROBOTS_TXT_PARSE_FAILED;
         }
-        if (sourceWatch.getTermsCheckStatus() == TermsCheckStatus.RESTRICTION_FOUND) {
+        if (sourceWatch.getTermsCheckStatus() == TermsCheckStatus.RESTRICTION_FOUND
+                || sourceWatch.getTermsCheckStatus() == TermsCheckStatus.BLOCKED) {
             return SkippedReason.TERMS_RESTRICTION_FOUND;
         }
         if (sourceWatch.getTermsCheckStatus() == TermsCheckStatus.NOT_CHECKED) {
@@ -359,6 +397,67 @@ public class SourceWatchService {
             return SkippedReason.COLLECTION_PERMISSION_NOT_APPROVED;
         }
         return null;
+    }
+
+    private SkippedReason getPreCheckPolicySkippedReason(SourceWatch sourceWatch) {
+        if (sourceWatch.getRobotsCheckStatus() == RobotsCheckStatus.DISALLOWED) {
+            return SkippedReason.ROBOTS_TXT_DISALLOWED;
+        }
+        if (sourceWatch.getTermsCheckStatus() == TermsCheckStatus.RESTRICTION_FOUND
+                || sourceWatch.getTermsCheckStatus() == TermsCheckStatus.BLOCKED) {
+            return SkippedReason.TERMS_BLOCKED;
+        }
+        if (sourceWatch.getTermsCheckStatus() == TermsCheckStatus.NEEDS_REVIEW) {
+            return SkippedReason.POLICY_NEEDS_REVIEW;
+        }
+        if (Boolean.TRUE.equals(sourceWatch.getLoginRequired())
+                || sourceWatch.getCollectionPermissionStatus() == CollectionPermissionStatus.LOGIN_REQUIRED) {
+            return SkippedReason.LOGIN_REQUIRED;
+        }
+        if (sourceWatch.getCollectionPermissionStatus() == CollectionPermissionStatus.MANUAL_REVIEW_ONLY) {
+            return SkippedReason.POLICY_NEEDS_REVIEW;
+        }
+        if (sourceWatch.getCollectionPermissionStatus() == CollectionPermissionStatus.BLOCKED_BY_TERMS) {
+            return SkippedReason.TERMS_BLOCKED;
+        }
+        return null;
+    }
+
+    private SkippedReason getAfterRobotsPolicySkippedReason(SourceWatch sourceWatch) {
+        if (sourceWatch.getTermsCheckStatus() == TermsCheckStatus.RESTRICTION_FOUND
+                || sourceWatch.getTermsCheckStatus() == TermsCheckStatus.BLOCKED) {
+            return SkippedReason.TERMS_BLOCKED;
+        }
+        if (sourceWatch.getTermsCheckStatus() == TermsCheckStatus.NEEDS_REVIEW
+                || sourceWatch.getCollectionPermissionStatus() == CollectionPermissionStatus.MANUAL_REVIEW_ONLY
+                || sourceWatch.getCollectionPermissionStatus() == CollectionPermissionStatus.UNKNOWN_NEEDS_REVIEW) {
+            return SkippedReason.POLICY_NEEDS_REVIEW;
+        }
+        if (Boolean.TRUE.equals(sourceWatch.getLoginRequired())
+                || sourceWatch.getCollectionPermissionStatus() == CollectionPermissionStatus.LOGIN_REQUIRED) {
+            return SkippedReason.LOGIN_REQUIRED;
+        }
+        if (sourceWatch.getCollectionPermissionStatus() != CollectionPermissionStatus.ALLOWED_TO_COLLECT) {
+            return SkippedReason.COLLECTION_PERMISSION_NOT_APPROVED;
+        }
+        return null;
+    }
+
+    private boolean isLoginRequiredFailure(FetchResult fetchResult) {
+        return fetchResult.statusCode() == 401 || fetchResult.statusCode() == 403;
+    }
+
+    private boolean looksLikeLoginRequiredPage(String html) {
+        if (html == null || html.isBlank()) {
+            return false;
+        }
+        String normalized = html.toLowerCase(Locale.ROOT);
+        return normalized.contains("로그인")
+                || normalized.contains("login")
+                || normalized.contains("sign in")
+                || normalized.contains("회원 로그인")
+                || normalized.contains("로그인이 필요")
+                || normalized.contains("인증이 필요");
     }
 
     private RobotsCheckStatus toRobotsCheckStatus(RobotsTxtCheckResult result) {

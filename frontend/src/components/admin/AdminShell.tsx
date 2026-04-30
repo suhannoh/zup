@@ -205,7 +205,7 @@ export function AdminShell({children}: { children: React.ReactNode }) {
                         </button>
                     </div>
 
-                    <nav className={sidebarExpanded ? "space-y-1 px-3 py-4" : "space-y-2 px-5 py-5"}>
+                    <nav className={sidebarExpanded ? "space-y-1.5 px-3 py-4" : "space-y-1.5 px-5 py-5"}>
                         {navItems.map((item) => {
                             const active = isActivePath(pathname, item.href);
                             const Icon = item.icon;
@@ -215,22 +215,22 @@ export function AdminShell({children}: { children: React.ReactNode }) {
                                     key={item.href}
                                     href={item.href}
                                     className={[
-                                        "group flex items-center rounded-xl text-sm font-semibold transition",
+                                        "group flex items-center rounded-xl text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-blue-200",
                                         sidebarExpanded ? "h-11 gap-3 px-4" : "h-12 justify-center px-0",
-                                        active ? "bg-blue-600 text-white" : "text-neutral-700 hover:bg-neutral-100",
+                                        active ? "bg-blue-600 text-white shadow-sm" : "text-neutral-700 hover:bg-blue-50 hover:text-blue-700",
                                     ].join(" ")}
                                     title={item.label}
                                 >
                                   <span
-                                      className={[
-                                          "flex shrink-0 items-center justify-center",
-                                          sidebarExpanded ? "h-6 w-6" : "h-8 w-8",
+                                          className={[
+                                              "flex shrink-0 items-center justify-center",
+                                          sidebarExpanded ? "h-[18px] w-[18px]" : "h-[18px] w-[18px]",
                                       ].join(" ")}
                                   >
                                     <Icon
                                         className={[
                                             "shrink-0",
-                                            sidebarExpanded ? "h-[22px] w-[22px]" : "h-[26px] w-[26px]",
+                                            "h-[18px] w-[18px]",
                                         ].join(" ")}
                                     />
                                   </span>

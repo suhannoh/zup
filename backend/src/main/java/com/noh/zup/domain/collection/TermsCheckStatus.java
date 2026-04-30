@@ -4,5 +4,6 @@ public enum TermsCheckStatus {
     NOT_CHECKED,
     NO_RESTRICTION_FOUND,
     RESTRICTION_FOUND,
-    NEEDS_REVIEW
+    NEEDS_REVIEW,
+    BLOCKED
 }

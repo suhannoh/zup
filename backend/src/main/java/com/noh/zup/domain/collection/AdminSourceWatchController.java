@@ -50,6 +50,14 @@ public class AdminSourceWatchController {
         return ApiResponse.success(sourceWatchService.updateActive(id, request.isActive()), "source watch active updated");
     }
 
+    @PatchMapping("/{id}/terms-check")
+    public ApiResponse<SourceWatchResponse> updateTermsCheck(
+            @PathVariable Long id,
+            @Valid @RequestBody SourceWatchTermsCheckRequest request
+    ) {
+        return ApiResponse.success(sourceWatchService.updateTermsCheck(id, request), "source watch terms check updated");
+    }
+
     @PostMapping("/{id}/collect")
     public ApiResponse<SourceWatchCollectResponse> collect(@PathVariable Long id) {
         return ApiResponse.success(sourceWatchService.collect(id), "source watch collected");

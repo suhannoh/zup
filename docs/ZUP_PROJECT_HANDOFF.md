@@ -77,6 +77,15 @@ Candidate 정제 메모:
 4. `/admin/benefit-candidates?collectionRunId={runId}` 와 `/admin/collection-runs`에서 `collectionRunId` 추적이 정상인지 확인한다.
 5. 검증 SQL로 null 잔여 건수와 `collection_run_id` 분포를 확인한 뒤 운영 적용을 마무리한다.
 
+SourceWatch 약관 확인 필드 운영 DB 반영 절차:
+
+1. [20260430_add_terms_check_fields_to_source_watches.sql](/Users/suhannoh/Downloads/zup/docs/sql/20260430_add_terms_check_fields_to_source_watches.sql)로 약관 확인 컬럼과 상태 인덱스를 반영한다.
+2. `source_watches`에 `terms_check_status`, `terms_url`, `terms_checked_at`, `terms_memo`, `terms_link_candidates_json` 컬럼이 있는지 확인한다.
+3. 기존 SourceWatch의 `terms_check_status`는 `NOT_CHECKED`로 초기화한다.
+4. `/admin/source-watches`에서 수집 실행 후 자동 탐색된 약관 후보 링크를 확인한다.
+5. 관리자가 약관 URL, 확인일, 상태, 메모를 저장한다.
+6. `NEEDS_REVIEW`, `BLOCKED`, `RESTRICTION_FOUND` 상태는 자동 수집 차단 정책으로 유지한다.
+
 주의사항:
 
 - 운영 DB에서는 `ddl-auto=update`에 의존하지 않는다.

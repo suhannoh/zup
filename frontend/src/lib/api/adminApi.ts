@@ -32,6 +32,7 @@ import type {
   SourceWatchCollectResponse,
   SourceWatchCreateRequest,
   SourceWatchRegenerateCandidatesResponse,
+  SourceWatchTermsCheckRequest,
   SourceWatchUpdateRequest,
 } from "@/types/sourceWatch";
 import type {
@@ -324,6 +325,14 @@ export async function updateSourceWatch(sourceWatchId: number, request: SourceWa
 export async function updateSourceWatchActive(sourceWatchId: number, request: { isActive: boolean }) {
   const response = await adminApiClient.patch<ApiResponse<SourceWatch>>(
     `/api/v1/admin/source-watches/${sourceWatchId}/active`,
+    request
+  );
+  return response.data.data;
+}
+
+export async function updateSourceWatchTermsCheck(sourceWatchId: number, request: SourceWatchTermsCheckRequest) {
+  const response = await adminApiClient.patch<ApiResponse<SourceWatch>>(
+    `/api/v1/admin/source-watches/${sourceWatchId}/terms-check`,
     request
   );
   return response.data.data;
